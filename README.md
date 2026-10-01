@@ -69,6 +69,8 @@ python -m ui_automation --config config/example.yaml -- site_audit tests/test_co
 
 To audit another site, copy `config/example.yaml`, change `base_url`, and run it the same way. In GitHub,
 go to **Actions → Site audit → Run workflow** and enter the config file. example.ie is audited weekly.
+Problems found on the site show as a warning on a green run (the report is the result); the run fails
+only when the audit itself could not run.
 
 ## Testing the framework itself
 
