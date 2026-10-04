@@ -11,8 +11,10 @@ Work through these steps in order. Speak plainly: the person running this may no
 
 Run `echo "${CLAUDE_CODE_REMOTE:-}"` to see where you are.
 
-- **`true` (a cloud session):** the code was just cloned, so it is already the latest. Note that a cloud session
-  **cannot reach the person's own computer**: `localhost`, `127.0.0.1` and `192.168.x.x` addresses won't work here.
+- **`true` (a cloud session):** the code was just cloned, so it is already the latest. If
+  `python -c "import playwright"` fails, run `python -m pip install -r requirements-dev.txt` first. Note that a
+  cloud session **cannot reach the person's own computer**: `localhost`, `127.0.0.1` and `192.168.x.x` addresses
+  won't work here.
 - **Anything else (their own computer):**
   1. Run `git status --short`. If files are changed, **stop and ask** before doing anything: never discard
      their changes. Offer `git stash push -m "before /test"`, which keeps them safe.
@@ -48,8 +50,13 @@ It can take several minutes; run it in the background and tell the person roughl
 If it stops before testing:
 - **"Nothing is answering at …"**: the app isn't running. On their computer, ask them to start it (or set
   `app.start` in its settings file), then run again.
-- **"Could not install …"** in a cloud session: run again with `-- --browser chromium site_audit` (Chromium is
-  always installed there) and say that the other browsers need their own computer or a GitHub run.
+- **"Could not install …"** in a cloud session: the environment's network access blocks Playwright's download
+  servers. Tell them to add `cdn.playwright.dev` and `playwright.download.prss.microsoft.com` to Allowed domains
+  (steps: https://code.claude.com/docs/en/cloud-environments#network-access), then start a new session so every
+  browser downloads. Meanwhile, if they agree, run with `-- --browser chromium site_audit`: Chromium is always
+  available there. Never work around a browser that won't install by editing the project or linking files.
+- **A page answers 403 "request blocked" / "no rule or allowlist entry"**: that is the cloud session's network
+  access, not the site. Tell them to add the site's domain to Allowed domains (same steps).
 
 ## 4. Explain the result
 

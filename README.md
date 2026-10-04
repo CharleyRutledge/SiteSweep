@@ -13,8 +13,11 @@ or one of the `config/*.yaml` files) and how thorough, runs the site audit and e
 The `/test` steps are in [`.claude/skills/test/SKILL.md`](.claude/skills/test/SKILL.md).
 
 - **In the cloud (the button):** the session runs on Anthropic's computers, so it **cannot reach your own computer**
-  (`localhost`, so not an app running on your computer). Websites must be allowed by the environment's
-  [network access](https://code.claude.com/docs/en/cloud-environments#network-access) setting.
+  (`localhost`, so not an app running on your computer). In the environment's
+  [network access](https://code.claude.com/docs/en/cloud-environments#network-access) setting, choose **Custom**,
+  keep the package managers, and add to Allowed domains: `cdn.playwright.dev` and
+  `playwright.download.prss.microsoft.com` (so Chrome's engine, Firefox and Safari's engine download themselves)
+  and each website you want to test.
 - **On your computer** (for apps running on your computer; needs [Claude Code](https://code.claude.com) installed and
   `claude` run once in this folder): paste this into your browser's address bar. It opens Claude Code here, which
   pulls the latest code, updates the packages and then asks what to test. (GitHub won't make this a clickable link.)

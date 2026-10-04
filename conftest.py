@@ -115,9 +115,11 @@ def base_url(settings: Settings) -> str:
 
 
 @pytest.fixture(scope="session")
-def browser_type_launch_args(pytestconfig: pytest.Config, settings: Settings) -> dict[str, Any]:
+def browser_type_launch_args(pytestconfig: pytest.Config, settings: Settings, browser_name: str) -> dict[str, Any]:
     """Align launch options with settings.yaml; keep pytest-playwright CLI flags."""
-    launch_options: dict[str, Any] = {}
+    from ui_automation.browsers import launch_options as stand_in
+
+    launch_options: dict[str, Any] = dict(stand_in(browser_name))
     if pytestconfig.getoption("--headed"):
         launch_options["headless"] = False
     elif _VSCODE_PYTHON_EXTENSION_ID in sys.argv[0] and _debugger_attached():
