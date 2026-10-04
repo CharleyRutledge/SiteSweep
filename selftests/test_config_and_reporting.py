@@ -21,7 +21,7 @@ def test_env_substituted_false_is_false(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     "text",
     [
-        pytest.param("base_url: playwright.dev\n", id="base_url_without_scheme"),
+        pytest.param("base_url: example.com\n", id="base_url_without_scheme"),
         pytest.param("base_url: http://x\ntimeout_ms: -5\n", id="negative_timeout"),
         pytest.param("base_url: http://x\nslow_mo_ms: abc\n", id="non_numeric_slow_mo"),
         pytest.param("base_url: http://x\nartifacts: on\n", id="artifacts_not_a_mapping"),

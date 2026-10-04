@@ -1,6 +1,6 @@
 ---
 name: test
-description: Get the latest code, ask what to test (a website, My App, which roles and browsers), run the site audit and explain the report in plain language. Started by the "Open in Claude" links in the README.
+description: Get the latest code, ask what to test (a website or a settings file, which browsers), run the site audit and explain the report in plain language. Started by the "Open in Claude" links in the README.
 ---
 
 # Test a website or app with Web-UI-Automation
@@ -25,11 +25,10 @@ Use the AskUserQuestion tool. Ask together:
 
 1. **What to test.** Offer:
    - "A website": then ask for its address.
-   - "My App on this computer" (`config/my-app.yaml`, logs in as each role from `.env`). On their
-     own computer only; in a cloud session explain that it can't reach their computer, and offer the cloud-safe
-     options instead.
    - "The practice websites" (`config/practice-sites.yaml`).
-   - Any other `config/*.yaml` in the repo, by its `name:`.
+   - On their own computer only: each settings file in `config/private/` (git-ignored, their own apps), by its
+     `name:`. Never list, name or describe these files anywhere else (no commits, issues or pull requests).
+   Don't offer `config/settings.yaml` or `config/settings.example.yaml`: they are templates.
 2. **How thorough.** "Quick: today's browser and phone" (the default, about 4 minutes for a small site) or
    "Full: every browser and phone" (`--all-browsers`, about three times longer, good before a release).
 
@@ -47,8 +46,8 @@ The run is read-only: it opens pages and sends GET requests; it never submits fo
 It can take several minutes; run it in the background and tell the person roughly how long it will take.
 
 If it stops before testing:
-- **"Nothing is answering at …"**: the app isn't running. On their computer, ask them to start it (for myapp:
-  the front end on port 8080 and the Docker API), then run again.
+- **"Nothing is answering at …"**: the app isn't running. On their computer, ask them to start it (or set
+  `app.start` in its settings file), then run again.
 - **"Could not install …"** in a cloud session: run again with `-- --browser chromium site_audit` (Chromium is
   always installed there) and say that the other browsers need their own computer or a GitHub run.
 

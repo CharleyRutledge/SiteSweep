@@ -27,7 +27,7 @@ GOOD = """<!doctype html><html lang="en"><head><title>Good</title><style>
   .spinner { animation: spin 1s infinite; }
 </style></head><body><main><h1>Orders</h1><h2>This month</h2><h3>Detail</h3>
   <a href="#a">Open</a> <button>Save</button> <input aria-label="Name">
-  <img src="chart.png" alt="Bar chart of orders by month">
+  <img src="chart.png" alt="Bar chart of sales by month">
   <img src="divider.png" alt="">
   <video src="intro.mp4" controls><track kind="captions" src="intro.vtt" srclang="en"></video>
   <div class="spinner">Working</div><button>Pause animation</button>

@@ -172,7 +172,7 @@ def page_checks(page: Any) -> list[Violation]:
     if r["alt"]:
         found.append(_violation("alt-meaningless", "moderate", "Alt text that says nothing about the image", "1.1.1",
                                 "non-text-content", r["alt"],
-                                "Describe what the image shows or does (e.g. alt=\"Bar chart of orders by month\"), "
+                                "Describe what the image shows or does (e.g. alt=\"Bar chart of sales by month\"), "
                                 "or use alt=\"\" if it is only decoration."))
     if r["captions"]:
         found.append(_violation("video-captions", "serious", "Video without captions", "1.2.2", "captions-prerecorded",

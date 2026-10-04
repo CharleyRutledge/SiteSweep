@@ -13,9 +13,9 @@ or one of the `config/*.yaml` files) and how thorough, runs the site audit and e
 The `/test` steps are in [`.claude/skills/test/SKILL.md`](.claude/skills/test/SKILL.md).
 
 - **In the cloud (the button):** the session runs on Anthropic's computers, so it **cannot reach your own computer**
-  (`localhost`, so not My App running locally). Websites must be allowed by the environment's
+  (`localhost`, so not an app running on your computer). Websites must be allowed by the environment's
   [network access](https://code.claude.com/docs/en/cloud-environments#network-access) setting.
-- **On your computer** (for local apps like My App; needs [Claude Code](https://code.claude.com) installed and
+- **On your computer** (for apps running on your computer; needs [Claude Code](https://code.claude.com) installed and
   `claude` run once in this folder): paste this into your browser's address bar. It opens Claude Code here, which
   pulls the latest code, updates the packages and then asks what to test. (GitHub won't make this a clickable link.)
 
@@ -130,7 +130,7 @@ as a warning on a green run (the report is the result); the run fails only when 
 could not run.
 
 **Nothing runs on its own.** No suite is scheduled, and none that visits a website or sends a report
-runs on push. The site audit, the practice sites, the playwright.dev browser suite and the load and live
+runs on push. The site audit, the practice sites, the browser suite and the load and live
 checks only run when you start them in **Actions** (the site audit only with the URL you type). The
 self-tests and security scan still run on every push and pull request; they use local test servers and
 send nothing.
@@ -176,13 +176,17 @@ auth:
 Apps on your computer or local network (`localhost`, `127.0.0.1`, `192.168.x.x`, `*.local`) are tested
 from **your computer**: GitHub's machines cannot reach them.
 
+Keep the settings file for your own app in `config/private/` (for example `config/private/my-app.yaml`, copied
+from `config/site-audit.yaml`). That folder is git-ignored, so private apps' addresses, page lists and role names
+never reach GitHub. `/test` offers the files in it on your computer.
+
 ```bash
 # The app is already running:
-python -m ui_automation --config config/my-app.yaml -- site_audit
+python -m ui_automation --config config/private/my-app.yaml -- site_audit
 # Another port:
-python -m ui_automation --config config/my-app.yaml --url http://localhost:5173 -- site_audit
+python -m ui_automation --config config/private/my-app.yaml --url http://localhost:5173 -- site_audit
 # Let the tests start the app, wait until it answers, and stop it afterwards:
-python -m ui_automation --config config/my-app.yaml --start "npm run dev" --start-in ../my-app -- site_audit
+python -m ui_automation --config config/private/my-app.yaml --start "npm run dev" --start-in ../my-app -- site_audit
 ```
 
 - Apps in **Docker**: a start command that runs in the background (`docker compose up -d --wait`) is
@@ -255,7 +259,7 @@ HTML report.
 
 ## Playwright best practices in this repo
 
-- **Locators** in `pages/locators/` — `get_by_role`, `get_by_label`, `get_by_test_id` (not CSS/XPath-only).
+- **Locators** in page objects under `pages/` — `get_by_role`, `get_by_label`, `get_by_test_id` (not CSS/XPath-only).
 - **Assertions** — `expect(locator).to_be_visible()` etc. (auto-retrying).
 - **Navigation** — relative URLs with `base_url` (`page.goto("/path")`).
 - **No arbitrary sleeps** — timeouts from `timeout_ms` and Playwright auto-wait.
@@ -327,10 +331,8 @@ Create a bot via [@BotFather](https://t.me/BotFather), add the bot to a chat, an
 Automation/
   config/settings.yaml
   pages/
-    locators/              # Centralized selectors
     base_page.py           # Semantic helpers + step()
-    playwright_landing_page.py
-  tests/
+  tests/                   # Accessibility and website-requirement checks of base_url
   conftest.py
   ui_automation/
     cli.py
@@ -343,7 +345,6 @@ Automation/
 
 ```powershell
 python -m ui_automation
-python -m ui_automation -- -m smoke
 python -m ui_automation -- --headed --slowmo=300
 ```
 
@@ -360,8 +361,8 @@ Enable notification blocks in `settings.yaml` (or use `settings.example.yaml` as
 
 ## Adding tests
 
-1. Add locators under `pages/locators/`.
-2. Extend `BasePage` with role/label helpers.
+1. Add a page object under `pages/` that extends `BasePage`, with its locators.
+2. Use role/label locators (`get_by_role`, `get_by_label`).
 3. Call `self.step("...")` for HTML report screenshots.
 4. Add tests under `tests/`.
 
