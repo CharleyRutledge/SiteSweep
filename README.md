@@ -1,4 +1,4 @@
-# Web UI Automation
+# SiteSweep
 
 Playwright + Python + pytest suite following [Playwright testing practices](https://playwright.dev/docs/best-practices): semantic locators, web-first `expect()` assertions, Page Object Model, YAML config, pipeline video capture, and optional **Claude Sonnet 5.5** summaries with **email** and **Telegram** notifications.
 
@@ -6,7 +6,7 @@ Playwright + Python + pytest suite following [Playwright testing practices](http
 
 ## Open in Claude
 
-[![Open in Claude](https://img.shields.io/badge/Open%20in%20Claude-test%20a%20site-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://claude.ai/code?repositories=CharleyRutledge/Web-UI-Automation&prompt=%2Ftest)
+[![Open in Claude](https://img.shields.io/badge/Open%20in%20Claude-test%20a%20site-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://claude.ai/code?repositories=CharleyRutledge/SiteSweep&prompt=%2Ftest)
 
 Click the button: Claude opens a session with the latest code, asks what you want to test (a website's address,
 or one of the `config/*.yaml` files) and how thorough, runs the site audit and explains the report.
@@ -20,7 +20,7 @@ The `/test` steps are in [`.claude/skills/test/SKILL.md`](.claude/skills/test/SK
   pulls the latest code, updates the packages and then asks what to test. (GitHub won't make this a clickable link.)
 
   ```text
-  claude-cli://open?repo=CharleyRutledge/Web-UI-Automation&q=%2Ftest
+  claude-cli://open?repo=CharleyRutledge/SiteSweep&q=%2Ftest
   ```
 
   Or in a terminal in this folder: `claude /test`.

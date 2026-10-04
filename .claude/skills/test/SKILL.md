@@ -3,7 +3,7 @@ name: test
 description: Get the latest code, ask what to test (a website or a settings file, which browsers), run the site audit and explain the report in plain language. Started by the "Open in Claude" links in the README.
 ---
 
-# Test a website or app with Web-UI-Automation
+# Test a website or app with SiteSweep
 
 Work through these steps in order. Speak plainly: the person running this may not be a developer.
 
