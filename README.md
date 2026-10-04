@@ -379,8 +379,8 @@ Enable notification blocks in `settings.yaml` (or use `settings.example.yaml` as
 
 ## Support this project
 
-If this suite saves you time, you can support ongoing work with a small donation:
+If SiteSweep saves you time, you can support its development with a small donation:
 
 **[Buy Me a Coffee](https://buymeacoffee.com/charleyrutledge)**
 
-GitHub also shows a **Sponsor** link on the repo (from [`.github/FUNDING.yml`](.github/FUNDING.yml)). If your Buy Me a Coffee username is not `charleyrutledge`, update that file and the links above to match your profile URL.
+You can also use the **Sponsor** button at the top of this repository.
