@@ -172,7 +172,7 @@ def test_report_only_lists_requirements_without_failing(tmp_path: Path) -> None:
 
 
 def test_shared_accessibility_issue_is_reported_once_with_its_pages(tmp_path: Path) -> None:
-    """My App's first run said '1 accessibility issue(s)' on 23 pages without naming it. The same issue in a
+    """A real app's first run said '1 accessibility issue(s)' on 23 pages without naming it. The same issue in a
     shared footer must come out as one line: what it is, on which pages, and that it is probably one fix."""
     footer = '<footer><p style="color:#bbb;background:#fff">Grey footer text</p></footer>'
     shared = {path: _page(title, f'<h1>{title}</h1><a href="/">Home</a> <a href="/a">A</a> <a href="/b">B</a>{footer}')

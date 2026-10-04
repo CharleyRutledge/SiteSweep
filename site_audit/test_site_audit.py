@@ -205,7 +205,7 @@ def test_api_refuses_logged_out_requests(audit: SiteMap, settings, playwright, b
 
 def test_api_keeps_roles_apart(audit: SiteMap, settings, playwright, browser, run_dir) -> None:
     """This role's read requests are sent again as every other role. Another role getting the same data for
-    a request its own pages never make points to a leak between roles (e.g. a manager reading orders)."""
+    a request its own pages never make points to a leak between roles (e.g. a viewer reading an admin's data)."""
     from site_audit.api import is_public, path, replay, replayable, where
     from site_audit.conftest import _map_for
 

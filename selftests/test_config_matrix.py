@@ -44,7 +44,7 @@ def test_base_url_normalised(tmp_path: Path, url: str, expected: str) -> None:
     assert load(tmp_path, f"base_url: '{url}'\n").base_url == expected
 
 
-@pytest.mark.parametrize("url", ["", "playwright.dev", "ftp://x", "http://", "5", "null", "/relative"])
+@pytest.mark.parametrize("url", ["", "example.com", "ftp://x", "http://", "5", "null", "/relative"])
 def test_base_url_rejected(tmp_path: Path, url: str) -> None:
     with pytest.raises(ValueError, match="base_url"):
         load(tmp_path, f"base_url: {url}\n")

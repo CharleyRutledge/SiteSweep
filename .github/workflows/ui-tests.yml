@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  # The browser suite visits playwright.dev and sends the Telegram/email report, so it only runs when
+  # The browser suite visits the configured website and sends the Telegram/email report, so it only runs when
   # started by hand (Actions -> UI tests -> Run workflow). The self-tests and security scan below run on
   # every push and pull request: they use local test servers only and send nothing.
   playwright:

@@ -304,12 +304,12 @@ def test_two_step_login(tmp_path: Path, app: App) -> None:
                              "test_crawl_found_the_site[viewer-chromium]": "passed"}, run.output
 
 
-def test_shipped_myapp_config_has_no_credentials() -> None:
+def test_shipped_configs_have_no_credentials() -> None:
     import yaml
 
-    text = (Path(__file__).resolve().parents[1] / "config" / "my-app.yaml").read_text()
-    for role in yaml.safe_load(text)["auth"]["roles"]:
-        assert role["username"].startswith("${") and role["password"].startswith("${"), role["name"]
+    for path in (Path(__file__).resolve().parents[1] / "config").glob("*.yaml"):
+        for role in ((yaml.safe_load(path.read_text()) or {}).get("auth") or {}).get("roles") or []:
+            assert role["username"].startswith("${") and role["password"].startswith("${"), (path.name, role["name"])
 
 
 def test_logged_in_check_text(tmp_path: Path, app: App) -> None:

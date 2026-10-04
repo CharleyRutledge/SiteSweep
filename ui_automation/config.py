@@ -172,7 +172,7 @@ class Settings:
     # Self-signed HTTPS certificates: "auto" accepts them for local addresses only (localhost, 192.168.x, ...);
     # "on" / "off" force it. Public sites are always held to real certificates under "auto".
     allow_self_signed: str = "auto"
-    name: str = ""  # what the reports call this run, e.g. "example.ie site audit" (default: the site's host)
+    name: str = ""  # what the reports call this run, e.g. "example.com site audit" (default: the site's host)
     browsers: tuple[str, ...] = ()  # every browser to run in (settings: browsers); the first is `browser`
     # "daily": each run uses one of `browsers`, taking turns by the day (Irish date); "off": all of them every run
     browser_rotation: str = "daily"

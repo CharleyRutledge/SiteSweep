@@ -20,3 +20,6 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+
+# Your own settings files (private apps, real addresses): never committed
+config/private/
