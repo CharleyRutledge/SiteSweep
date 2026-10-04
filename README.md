@@ -8,25 +8,33 @@ Playwright + Python + pytest suite following [Playwright testing practices](http
 
 [![Open in Claude](https://img.shields.io/badge/Open%20in%20Claude-test%20a%20site-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://claude.ai/code?repositories=CharleyRutledge/SiteSweep&prompt=%2Ftest)
 
-Click the button: Claude opens a session with the latest code, asks what you want to test (a website's address,
-or one of the `config/*.yaml` files) and how thorough, runs the site audit and explains the report.
-The `/test` steps are in [`.claude/skills/test/SKILL.md`](.claude/skills/test/SKILL.md).
+Click the button: Claude opens a session with the latest code and asks what to test and how thorough. It then
+runs the site audit and explains the report. The `/test` steps are in
+[`.claude/skills/test/SKILL.md`](.claude/skills/test/SKILL.md).
 
-- **In the cloud (the button):** the session runs on Anthropic's computers, so it **cannot reach your own computer**
-  (`localhost`, so not an app running on your computer). In the environment's
-  [network access](https://code.claude.com/docs/en/cloud-environments#network-access) setting, choose **Custom**,
-  keep the package managers, and add to Allowed domains: `cdn.playwright.dev` and
-  `playwright.download.prss.microsoft.com` (so Chrome's engine, Firefox and Safari's engine download themselves)
-  and each website you want to test.
-- **On your computer** (for apps running on your computer; needs [Claude Code](https://code.claude.com) installed and
-  `claude` run once in this folder): paste this into your browser's address bar. It opens Claude Code here, which
-  pulls the latest code, updates the packages and then asks what to test. (GitHub won't make this a clickable link.)
+**A website (in the cloud, the button).** Before testing, `/test` checks what the session's network can reach
+(`python -m ui_automation.reach <address>`). If something is refused, it lists the exact domains to allow,
+ready to copy: the site, any other sites its pages load from, and the browser download servers. You paste them
+once: the environment's name in the session's title bar -> **Edit** -> **Network access** -> **Custom** -> Allowed
+domains ([steps](https://code.claude.com/docs/en/cloud-environments#network-access)). Then say "done" and it checks
+again and runs.
+
+**An app on your computer (`localhost`).** A cloud session can't reach your computer, so run `/test` in a Claude
+session that runs on your computer. Start the app first, then either:
+
+- **Claude Desktop app:** open the **Code** tab, choose your SiteSweep folder, and type `/test`.
+- **From your phone or the web (Remote Control):** in a terminal in your SiteSweep folder run
+  `claude remote-control`, then open that session in the Claude app and type `/test`. It runs on your computer.
+- **From GitHub:** paste this into your browser's address bar (needs [Claude Code](https://code.claude.com)
+  installed and `claude` run once in this folder; GitHub won't make it a clickable link):
 
   ```text
   claude-cli://open?repo=CharleyRutledge/SiteSweep&q=%2Ftest
   ```
 
-  Or in a terminal in this folder: `claude /test`.
+In each case `/test` pulls the latest code and updates the packages. It then offers your own settings files in
+`config/private/` (logins come from `.env`), and every browser installs itself the first time. The report opens on
+your computer, and is sent to the chat too when you follow along from another device.
 
 ## Quick start
 
