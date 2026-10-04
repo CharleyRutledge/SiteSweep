@@ -8,6 +8,26 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
+# A Chromium that comes with the computer (Claude Code on the web has one here). Used only when Playwright's own
+# build can't be downloaded, e.g. when the network allows the site under test but not Playwright's download server.
+PREINSTALLED_CHROMIUM = [Path("/opt/pw-browsers/chromium")]
+# Where Playwright downloads its browsers from.
+DOWNLOAD_HOSTS = ("cdn.playwright.dev", "playwright.download.prss.microsoft.com")
+
+
+def preinstalled_chromium() -> str:
+    """WEB_UI_CHROMIUM if it names a browser that exists, else a Chromium that came with the computer, else ''."""
+    for path in [Path(p) for p in [os.environ.get("WEB_UI_CHROMIUM", "")] if p] + PREINSTALLED_CHROMIUM:
+        if path.is_file():
+            return str(path)
+    return ""
+
+
+def launch_options(name: str) -> dict[str, str]:
+    """Extra launch options for browser `name`: the stand-in Chromium when ensure_browsers chose one."""
+    path = os.environ.get("WEB_UI_CHROMIUM", "")
+    return {"executable_path": path} if name == "chromium" and path else {}
+
 
 def missing_browsers(names: list[str]) -> list[str]:
     """The browsers in `names` whose Playwright build is not on this computer."""
@@ -39,10 +59,19 @@ def ensure_browsers(names: list[str]) -> str:
         return ""
     print(f"Installing {', '.join(missing)} for this run (a one-time download) ...", flush=True)
     done = subprocess.run([sys.executable, "-m", "playwright", "install", *missing], check=False)
-    if done.returncode != 0:
-        return (f"Could not install {', '.join(missing)}. Run: python -m playwright install {' '.join(missing)}"
-                + (" (on Linux add --with-deps)" if sys.platform.startswith("linux") else ""))
-    return ""
+    if done.returncode == 0:
+        return ""
+    stand_in = preinstalled_chromium() if "chromium" in missing else ""
+    if stand_in:
+        os.environ["WEB_UI_CHROMIUM"] = stand_in  # read again by the test run (conftest.py, site audit)
+        print(f"Using the Chromium already on this computer instead: {stand_in}", flush=True)
+        missing = [m for m in missing if m != "chromium"]
+        if not missing:
+            return ""
+    return (f"Could not install {', '.join(missing)}. Run: python -m playwright install {' '.join(missing)}"
+            + (" (on Linux add --with-deps)" if sys.platform.startswith("linux") else "")
+            + (". In Claude Code on the web, the environment's network access must allow "
+               f"{' and '.join(DOWNLOAD_HOSTS)}" if os.environ.get("CLAUDE_CODE_REMOTE") == "true" else ""))
 
 
 def irish_today() -> date:

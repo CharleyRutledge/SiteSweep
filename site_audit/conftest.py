@@ -22,6 +22,7 @@ from playwright.sync_api import Browser, Error as PlaywrightError, Page
 
 from pages.base_page import BasePage
 from ui_automation.blocking import blocked_reason
+from ui_automation.browsers import launch_options
 from ui_automation.config import Settings, accepts_self_signed, role_area
 
 # Links to files rather than pages: checked as links, never opened as pages.
@@ -540,7 +541,7 @@ def check_on_device(playwright, settings: Settings, site: SiteMap, device: str, 
         return [f"{device}: not a known device{' (did you mean: ' + ', '.join(near) + '?)' if near else ''}"], []
     profile = dict(playwright.devices[device])
     engine = profile.pop("default_browser_type")
-    browser = getattr(playwright, engine).launch(headless=settings.headless)
+    browser = getattr(playwright, engine).launch(headless=settings.headless, **launch_options(engine))
     context = browser.new_context(**profile, storage_state=site.state, ignore_https_errors=accepts_self_signed(settings))
     page = context.new_page()
     page.set_default_timeout(settings.timeout_ms)
