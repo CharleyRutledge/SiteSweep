@@ -1,0 +1,17 @@
+SiteSweep
+Copyright 2026 Charley Rutledge
+https://github.com/CharleyRutledge/SiteSweep
+
+SiteSweep was created by Charley Rutledge (https://github.com/CharleyRutledge).
+
+Licensed under the Apache License, Version 2.0 (see the LICENSE file). By using, copying,
+changing or sharing SiteSweep, you accept the terms of that License.
+
+Under section 4 of the License, anyone who shares SiteSweep, or a work based on it, must:
+  - include a copy of the LICENSE file;
+  - include this NOTICE file, keeping the credit to Charley Rutledge as the creator;
+  - mark the files they changed.
+
+This product includes third-party software:
+  - axe-core (ui_automation/accessibility/vendor/axe.min.js), Copyright Deque Systems, Inc.,
+    under the Mozilla Public License 2.0 (see ui_automation/accessibility/vendor/AXE-LICENSE.txt).

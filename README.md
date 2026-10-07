@@ -1,7 +1,14 @@
 # SiteSweep
 
-Playwright + Python + pytest suite following [Playwright testing practices](https://playwright.dev/docs/best-practices): semantic locators, web-first `expect()` assertions, Page Object Model, YAML config, pipeline video capture, and optional **Claude Sonnet 5.5** summaries with **email** and **Telegram** notifications.
+**Point it at any website or web app and it checks every page:** broken links and images, errors, slow pages,
+accessibility (WCAG 2.1 AA / EN 301 549, with a copyable fix for each issue), Irish/EU website requirements,
+phones and every screen size, Chrome, Firefox and Safari's engine, the app's API, and what each kind of
+logged-in user can and can't see. You get a plain-language report, on your computer, by Telegram or by email.
 
+Created by [Charley Rutledge](https://github.com/CharleyRutledge). Built with Python, [Playwright](https://playwright.dev)
+and pytest, with optional summaries by Claude.
+
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/charleyrutledge)
 
 ## Open in Claude
@@ -25,25 +32,22 @@ session that runs on your computer. Start the app first, then either:
 - **Claude Desktop app:** open the **Code** tab, choose your SiteSweep folder, and type `/test`.
 - **From your phone or the web (Remote Control):** in a terminal in your SiteSweep folder run
   `claude remote-control`, then open that session in the Claude app and type `/test`. It runs on your computer.
-- **From GitHub:** paste this into your browser's address bar (needs [Claude Code](https://code.claude.com)
-  installed and `claude` run once in this folder; GitHub won't make it a clickable link):
-
-  ```text
-  claude-cli://open?repo=CharleyRutledge/SiteSweep&q=%2Ftest
-  ```
+- **In a terminal:** run `claude /test` in your SiteSweep folder.
 
 In each case `/test` pulls the latest code and updates the packages. It then offers your own settings files in
 `config/private/` (logins come from `.env`), and every browser installs itself the first time. The report opens on
 your computer, and is sent to the chat too when you follow along from another device.
 
-## Quick start
+## Quick start (without Claude)
 
 ```powershell
-
+git clone https://github.com/CharleyRutledge/SiteSweep.git
+cd SiteSweep
 python -m pip install -r requirements.txt
-python -m playwright install chromium
-python -m ui_automation --open
+python -m ui_automation --config config/site-audit.yaml --url https://example.ie --open -- site_audit
 ```
+
+The browsers it needs install themselves on the first run, and `--open` opens the report when it finishes.
 
 ## Open the report
 
@@ -339,17 +343,18 @@ Create a bot via [@BotFather](https://t.me/BotFather), add the bot to a chat, an
 ## Project layout
 
 ```
-Automation/
-  config/settings.yaml
-  pages/
-    base_page.py           # Semantic helpers + step()
-  tests/                   # Accessibility and website-requirement checks of base_url
-  conftest.py
-  ui_automation/
-    cli.py
-    config.py
-    reporting/             # Claude, email, Telegram, video copy
-  .github/workflows/ui-tests.yml
+SiteSweep/
+  config/                  # settings files; your own apps' go in config/private/ (git-ignored)
+  site_audit/              # the whole-site audit
+  tests/                   # accessibility and website-requirement checks of base_url
+  practice_sites/          # suites for public practice websites
+  pages/base_page.py       # semantic helpers + step() for page objects
+  ui_automation/           # command line, settings, browsers, network check, reports, Claude/email/Telegram
+  selftests/               # the framework's own tests
+  .claude/                 # the /test command and cloud session setup
+  .github/                 # workflows (all started by hand), Dependabot, Sponsor button
+  LICENSE, NOTICE          # Apache License 2.0 and the attribution notice
+  AGENTS.md, CLAUDE.md     # instructions for AI assistants
 ```
 
 ## Running tests
@@ -376,6 +381,21 @@ Enable notification blocks in `settings.yaml` (or use `settings.example.yaml` as
 2. Use role/label locators (`get_by_role`, `get_by_label`).
 3. Call `self.step("...")` for HTML report screenshots.
 4. Add tests under `tests/`.
+
+## Licence and credit
+
+SiteSweep was created by **Charley Rutledge** and is licensed under the [Apache License 2.0](LICENSE).
+By using, copying, changing or sharing it, you accept the terms of that licence.
+
+You're free to use it, change it and share it, including commercially. If you share SiteSweep, or something
+based on it:
+
+- include the [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE) files;
+- credit **Charley Rutledge** as the creator, with a link to https://github.com/CharleyRutledge/SiteSweep;
+- mark the files you changed.
+
+AI assistants working in a copy of SiteSweep are told the same in [`AGENTS.md`](AGENTS.md) and
+[`CLAUDE.md`](CLAUDE.md): they mention the creator and the licence when they start, and keep the credit in place.
 
 ## Support this project
 
