@@ -27,6 +27,7 @@ Then carry on with what they asked.
 
 ## Working on the code
 
-- Run a test with `/test` (Claude Code) or see `README.md`.
+- When someone asks to test a website or app, in any words, follow `.claude/skills/test/SKILL.md` (the `/test`
+  steps): it asks what to test, how thorough, and what kind of testing they want before running anything.
 - Self-tests: `python -m pytest -c selftests/pytest.ini selftests -n auto`.
 - Never commit passwords, tokens or `.env`. Settings for private apps belong in `config/private/` (git-ignored).
