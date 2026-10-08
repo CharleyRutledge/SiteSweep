@@ -284,3 +284,20 @@ def test_keyboard_and_focus_problems_reach_the_report(tmp_path: Path) -> None:
     html = (run.run_dir / "summary.html").read_text(encoding="utf-8")
     assert "No visible focus indicator" in html and "Also checked automatically (beyond axe-core)" in html
     assert ":focus-visible" in html  # the suggested fix
+
+
+def test_every_check_explains_itself_and_records_what_it_found(tmp_path: Path) -> None:
+    """The report shows what each check means and what it measured, passed or failed (not just 'failed')."""
+    for url in _serve(CLEAN):
+        cfg = base_config(url, artifacts={"video": "off"}, accessibility={"fail_on": "none"},
+                          audit={"max_pages": 5, "check_external_links": False})
+        run = invoke_cli(tmp_path, ["site_audit", "-k", "load or network or javascript or links or title"], config=cfg)
+    for name in ("test_pages_load_quickly", "test_no_network_errors", "test_no_javascript_errors",
+                 "test_no_broken_links", "test_every_page_loads_with_a_title_and_heading"):
+        t = run.test(name)
+        assert t["about"] and t["evidence"], (name, t)
+    speed = run.test("test_pages_load_quickly")
+    assert speed["outcome"] == "passed"
+    assert speed["evidence"][0]["columns"] == ["Page", "Usable after", "Within the limit?"]
+    assert {row[0] for row in speed["evidence"][0]["rows"]} >= {"/"}  # every page's time, even when all are fast
+    assert all(row[1].endswith(" s") for row in speed["evidence"][0]["rows"])

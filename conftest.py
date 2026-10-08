@@ -214,10 +214,13 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
     if report.when != "call":
         return
 
-    for key in ("accessibility", "compliance"):
+    for key in ("accessibility", "compliance", "evidence"):
         recorded = getattr(item, key, None)
         if recorded:
             report.user_properties.append((key, recorded))
+    about = getattr(getattr(item, "module", None), "ABOUT", {}).get(getattr(item, "originalname", item.name), "")
+    if about:
+        report.user_properties.append(("about", about))
 
     early_steps = getattr(item, "step_screenshots", []) or []
     if early_steps:

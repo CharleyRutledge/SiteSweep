@@ -42,12 +42,27 @@ FOCUS_JS = """() => {
     let path = [], e = el;
     while (e && e !== document.body) { path.unshift(e.tagName + ':' + [...(e.parentElement || document.body).children].indexOf(e)); e = e.parentElement; }
     return {key: path.join('/'), label: label(el) + ' "' + (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 30) + '"',
-            visible: outline || focused !== plain};
+            visible: outline || focused !== plain,
+            media: ['VIDEO', 'AUDIO'].includes(el.tagName) && el.hasAttribute('controls')};
 }"""
+
+# Inside a closed <details> only its own <summary> can be reached; browsers skip the rest.
+_REACHABLE_JS = """e => { const d = e.closest('details:not([open])');
+    return !e.disabled && e.getClientRects().length && (!d || (e.tagName === 'SUMMARY' && e.parentElement === d)); }"""
 
 COUNT_FOCUSABLE_JS = """() => [...document.querySelectorAll(
     'a[href], button, input:not([type=hidden]), select, textarea, summary, [tabindex]:not([tabindex="-1"]), [contenteditable=true]')]
-    .filter(e => !e.disabled && e.getClientRects().length).length"""
+    .filter(""" + _REACHABLE_JS + """).length"""
+
+# Moves focus to the next focusable element after the current one (past a media player's own controls).
+FOCUS_PAST_JS = """() => {
+    const all = [...document.querySelectorAll('a[href], button, input:not([type=hidden]), select, textarea, summary, '
+        + 'video[controls], audio[controls], [tabindex]:not([tabindex="-1"]), [contenteditable=true]')]
+        .filter(""" + _REACHABLE_JS + """);
+    const next = all[all.indexOf(document.activeElement) + 1];
+    if (next) next.focus();
+    return !!next;
+}"""
 
 # Mouse-only controls: a pointer cursor on something that is not focusable and holds nothing focusable.
 MOUSE_ONLY_JS = """() => {
@@ -76,8 +91,11 @@ PAGE_JS = """() => {
         if (vague.test(a) || /\\.(png|jpe?g|gif|svg|webp|avif)$/i.test(a) || (file && a === file) || a.length > 150)
             alt.push(label(img) + ' alt="' + a.slice(0, 60) + '"');
     }
-    const captions = [...document.querySelectorAll('video')].filter(v => shown(v)
-        && !v.querySelector('track[kind=captions], track[kind=subtitles]')).map(v => label(v) + ' ' + (v.currentSrc || v.src || '').split('/').pop());
+    // A silent video (muted, with a written description of what it shows) has nothing to caption (WCAG 1.2.1).
+    const silent = v => v.hasAttribute('muted') && v.getAttribute('aria-describedby');
+    const source = v => { const s = v.currentSrc || v.src || ''; return s.startsWith('data:') ? 'embedded video' : s.split('/').pop(); };
+    const captions = [...document.querySelectorAll('video')].filter(v => shown(v) && !silent(v)
+        && !v.querySelector('track[kind=captions], track[kind=subtitles]')).map(v => label(v) + ' ' + source(v));
     const refresh = document.querySelector('meta[http-equiv="refresh" i]');
     const moving = (document.getAnimations ? document.getAnimations() : []).filter(a => a.playState === 'running'
         && a.effect && a.effect.getComputedTiming().iterations === Infinity && a.effect.target && shown(a.effect.target))
@@ -110,7 +128,9 @@ SPACING_JS = """() => {
             const s = getComputedStyle(el);
             const hides = ['hidden', 'clip'].includes(s.overflowY) || ['hidden', 'clip'].includes(s.overflowX);
             const text = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim().length > 2);
-            if (hides && text && el.getClientRects().length
+            // Text hidden on purpose for screen readers only (the 1 px "sr-only" pattern) is never read on screen.
+            const forScreenReaders = el.offsetWidth <= 1 || el.offsetHeight <= 1;
+            if (hides && text && !forScreenReaders && el.getClientRects().length
                 && (el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2))
                 out.push(label(el) + ' "' + (el.innerText || '').trim().slice(0, 30) + '"');
         }
@@ -121,8 +141,24 @@ SPACING_JS = """() => {
 }"""
 
 
+# Who each of these checks protects (for the report's "Who it affects").
+_WHO = {
+    "focus-visible": "people who use a keyboard instead of a mouse",
+    "keyboard-trap": "people who use a keyboard instead of a mouse",
+    "mouse-only": "people who use a keyboard, switch or voice control instead of a mouse",
+    "text-spacing": "people with low vision or dyslexia who space text out to read it",
+    "alt-meaningless": "blind people using a screen reader",
+    "video-captions": "deaf and hard-of-hearing people",
+    "auto-refresh": "screen reader users and people who need more time to read",
+    "endless-motion": "people with attention or vestibular disorders",
+    "heading-skip": "screen reader users who move around a page by its headings",
+}
+
+
 def _violation(rule: str, impact: str, help_: str, criterion: str, slug: str, targets: list[str], note: str) -> Violation:
     return Violation(rule=rule, impact=impact, help=help_, help_url=_UNDERSTANDING + slug, criteria=[criterion],
+                     description=note.split(". ")[0].rstrip(".") + "." if note else "",
+                     affects=[_WHO[rule]] if rule in _WHO else [],
                      targets=targets[:5], count=len(targets),
                      fixes=[{"target": t, "html": "", "fix": "", "note": note} for t in targets[:3]])
 
@@ -135,15 +171,31 @@ def keyboard(page: Any, max_stops: int = 40) -> list[Violation]:
     seen: list[str] = []
     invisible: list[str] = []
     trapped = ""
-    for _ in range(min(total + 2, max_stops)):
+    staying = 0
+    for _ in range(min(total + 2, max_stops) + 12):
         page.keyboard.press("Tab")
         info = page.evaluate(FOCUS_JS)
         if info is None:
             if seen:
                 break  # focus left the page: the end was reached
             continue
-        if not info["visible"] and info["label"] not in invisible:
-            invisible.append(info["label"])
+        if seen and info["key"] == seen[-1] and len(set(seen)) >= total:
+            break  # every element was reached: focus has left the page (Firefox still names the last one)
+        if seen and info["key"] == seen[-1]:
+            # Still on the same element: Tab moves through a video's or audio's own controls (play, volume, ...)
+            # while the page still names the player. Playwright's Firefox never leaves them, and that can't be
+            # told apart from a real Firefox here, so after a player's controls the check steps past it itself.
+            staying += 1
+            if staying > 10:
+                if info.get("media") and page.evaluate(FOCUS_PAST_JS):
+                    staying = 0
+                    continue
+                trapped = info["label"]
+                break
+            continue
+        staying = 0
+        if not info["visible"] and not info.get("media") and info["label"] not in invisible:
+            invisible.append(info["label"])  # (a player's own controls draw their own focus ring)
         recent = seen[-6:]
         if info["key"] in recent and len(set(seen)) < total and len(seen) >= 3:
             trapped = info["label"]  # back to an element seen a few stops ago, with others never reached

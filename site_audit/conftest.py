@@ -227,6 +227,20 @@ def refused_by_this_network(response) -> bool:  # noqa: ANN001 - APIResponse
         return False
 
 
+def _refused_on_second_look(context, url: str) -> bool:  # noqa: ANN001 - BrowserContext
+    """Asks again outside the page (WebKit doesn't show a proxy's answer to a page): was it this computer's network
+    that refused the address? Only for 403s, and only behind a proxy."""
+    from ui_automation.browsers import proxy_settings
+
+    if not proxy_settings():
+        return False
+    try:
+        return refused_by_this_network(context.request.get(url, max_redirects=0, fail_on_status_code=False,
+                                                           timeout=10_000))
+    except PlaywrightError:
+        return False
+
+
 def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_signed_ok: bool = False,
           settings: Settings | None = None, shots: Path | None = None, storage_state: dict | None = None,
           start: str | None = None, area: str = "", extra: tuple[str, ...] = (),
@@ -249,15 +263,21 @@ def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_
         u = urlparse(url)
         return (u.path or "/") if same_site(url, home) else f"{u.netloc}{u.path or '/'}"
 
+    maybe_refused: list = []  # 403s that may come from this computer's network rather than the site
+
     def on_response(response) -> None:  # noqa: ANN001 - Playwright Response
         # (the page itself is covered by the page and link checks)
         if response.status >= 400 and not response.request.is_navigation_request() and len(network_errors) < 50:
             network_errors.append(f"{response.request.method} {where(response.url)} -> HTTP {response.status}")
+            if response.status == 403:  # read later: a response's body can't be read inside its own event
+                maybe_refused.append((network_errors[-1], response))
 
     def on_failed(request) -> None:  # noqa: ANN001 - Playwright Request
         failure = request.failure or "failed"
-        # ERR_ABORTED: the browser cancelled it because the crawler moved on to the next page, not a fault.
-        if "ERR_ABORTED" not in failure and not request.is_navigation_request() and len(network_errors) < 50:
+        # Cancelled because the crawler moved on to the next page, not a fault: Chromium says ERR_ABORTED,
+        # WebKit "Load request cancelled" (or "cancelled"), Firefox NS_BINDING_ABORTED.
+        cancelled = any(c in failure for c in ("ERR_ABORTED", "cancelled", "NS_BINDING_ABORTED"))
+        if not cancelled and not request.is_navigation_request() and len(network_errors) < 50:
             if "TUNNEL_CONNECTION_FAILED" in failure:
                 failure += ": refused by this computer's network, not by the site"
             network_errors.append(f"{request.method} {where(request.url)} -> no answer ({failure})")
@@ -310,6 +330,7 @@ def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_
             result = PageResult(url)
             js_errors.clear()
             network_errors.clear()
+            maybe_refused.clear()
             try:
                 response = page.goto(url, wait_until=wait_until)  # type: ignore[arg-type]
                 page.wait_for_load_state("load", timeout=15_000)
@@ -350,6 +371,12 @@ def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_
             if settings is not None:
                 try:
                     _measure(page, result, settings, shots, len(site.pages), js_errors)
+                    for entry, response in maybe_refused:
+                        if entry in network_errors and (refused_by_this_network(response)
+                                                        or _refused_on_second_look(context, response.url)):
+                            network_errors[network_errors.index(entry)] = (
+                                entry + ": refused by this computer's network, not by the site")
+                    maybe_refused.clear()
                     result.network_errors = list(dict.fromkeys(network_errors))
                 except PlaywrightError as exc:  # a page that breaks mid-check is reported, the audit goes on
                     site.problems[url] = f"could not be checked: {exc.message.splitlines()[0]}"

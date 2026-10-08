@@ -20,6 +20,59 @@ from ui_automation.compliance import Monitor, as_dicts, check_page
 # Sites that refuse automated link checks (they answer bots with these) are "unverified", not broken.
 UNVERIFIABLE = {401, 403, 405, 406, 429, 999}
 MAX_EXTERNAL_LINKS = 60
+_IMPACT = ["none", "minor", "moderate", "serious", "critical"]
+
+
+# What each check means, in plain words: shown above its results in the report.
+ABOUT = {
+    "test_crawl_found_the_site": "Finds the site's pages by following its own links from the home page. Every other "
+                                 "check uses the pages found here.",
+    "test_every_page_loads_with_a_title_and_heading": "Every page opens, shows real content, and has a page title "
+                                                      "(shown in the browser tab, WCAG 2.4.2) and a main heading.",
+    "test_no_javascript_errors": "No page has a script error that stops part of it working. Visitors don't see "
+                                 "these errors, but the feature the script runs (menus, forms, buttons) may break.",
+    "test_no_network_errors": "Everything a page loads (scripts, styles, images, fonts, data from the server) "
+                              "arrives. A failed request usually means something missing or broken on the page.",
+    "test_no_broken_links": "Every link on the site leads somewhere: no 'page not found' (HTTP 404) or server "
+                            "errors.",
+    "test_role_is_refused_restricted_pages": "Pages this kind of user must not see (listed in the settings) are "
+                                             "refused to them.",
+    "test_no_broken_images": "Every image on every page loads.",
+    "test_pages_fit_every_screen_size": "No page needs sideways scrolling, from a small phone (320 px) to a desktop "
+                                        "screen (WCAG 1.4.10 reflow).",
+    "test_works_on_mobile_devices": "Every page opened as a real phone (screen, touch, mobile browser): set up for "
+                                    "phones, no sideways scrolling, readable text, buttons big enough to tap.",
+    "test_api_calls_work_and_are_fast": "Every request the pages make to the site's server for data (its API) "
+                                        "answers without an error, and quickly.",
+    "test_api_refuses_logged_out_requests": "The data this user's pages ask the server for is refused to someone "
+                                            "who isn't logged in.",
+    "test_api_keeps_roles_apart": "One kind of user can't read another kind of user's data from the server.",
+    "test_pages_load_quickly": "How long each page takes until it can be used, compared with the limit in the "
+                               "settings (audit.load_budget_ms).",
+    "test_served_securely": "The site uses HTTPS (the padlock), sends visitors on plain http:// to HTTPS, and sends "
+                            "the security headers that protect visitors' browsers.",
+    "test_pages_are_accessible": "Every page checked against the accessibility standard (WCAG 2.1 AA, required in "
+                                 "the EU) for people using screen readers, keyboards, zoom or other aids. The "
+                                 "issues, with fixes, are in the Accessibility section.",
+    "test_meets_website_requirements": "Irish and EU legal must-haves on the home page, checked before any cookies "
+                                       "are accepted: a privacy notice, no tracking before consent and a way to "
+                                       "refuse it, an accessibility statement, company details and contact details. "
+                                       "Each result is in the Website requirements section.",
+}
+
+
+def evidence(request: pytest.FixtureRequest, title: str, columns: list[str], rows: list[list], note: str = "") -> None:
+    """A table of what a check found, shown in the report whether the check passed or failed."""
+    if not hasattr(request.node, "evidence"):
+        request.node.evidence = []
+    request.node.evidence.append({"title": title, "columns": columns, "note": note,
+                                  "rows": [[str(c) for c in row] for row in rows]})
+
+
+def _split(problem: str) -> list[str]:
+    """'GET /a.js -> HTTP 404' -> ['GET /a.js', 'HTTP 404']."""
+    what, _, result = problem.partition(" -> ")
+    return [what, result or ""]
 
 
 def report(problems: list[str], what: str) -> None:
@@ -34,6 +87,8 @@ def loaded(site_map: SiteMap) -> list:
 
 def test_crawl_found_the_site(audit: SiteMap, request: pytest.FixtureRequest) -> None:
     show(request, audit, audit.pages)  # every page found, as a gallery in the report
+    evidence(request, f"{len(audit.pages)} page(s) found", ["Page", "Title"],
+             [[short(u, audit.home), (audit.results[u].title if u in audit.results else "")] for u in audit.pages])
     where = f" under {audit.area}" if audit.area else ""
     print(f"Found {len(audit.pages)} page(s){where} and {len(audit.links)} link(s)")
     if audit.skipped_public:
@@ -75,12 +130,19 @@ def test_every_page_loads_with_a_title_and_heading(audit: SiteMap, request: pyte
             problems.append(f"{where}: no main heading (h1)")
             bad.append(url)
     show(request, audit, list(dict.fromkeys(bad)))
+    rows = [[short(u, audit.home), r.title or "(none)", "yes" if r.h1_count else "no",
+             r.load_error or (f"HTTP {r.status}" if r.status else "")]
+            for u in audit.pages if (r := audit.results.get(u))]
+    evidence(request, "Every page", ["Page", "Title", "Main heading", "Problem"], rows)
     report(problems, "page problem(s)")
 
 
 def test_no_javascript_errors(audit: SiteMap, request: pytest.FixtureRequest) -> None:
     problems = [f"{short(r.url, audit.home)}: {err}" for r in loaded(audit) for err in r.js_errors]
     show(request, audit, [r.url for r in loaded(audit) if r.js_errors])
+    evidence(request, f"{len(problems)} script error(s) on {len(loaded(audit))} page(s) checked", ["Page", "Error"],
+             [[short(r.url, audit.home), err] for r in loaded(audit) for err in r.js_errors],
+             "The screenshots show each page that had an error.")
     report(problems, "uncaught JavaScript error(s)")
 
 
@@ -88,10 +150,15 @@ def test_no_network_errors(audit: SiteMap, request: pytest.FixtureRequest) -> No
     """Every request a page makes (scripts, styles, images, fonts, API calls) must get an answer below HTTP 400."""
     problems = [f"{short(r.url, audit.home)}: {err}" for r in loaded(audit) for err in r.network_errors]
     show(request, audit, [r.url for r in loaded(audit) if r.network_errors])
+    evidence(request, f"{len(problems)} failed request(s) on {len(loaded(audit))} page(s) checked",
+             ["Page", "Request", "Result"],
+             [[short(r.url, audit.home), *_split(err)] for r in loaded(audit) for err in r.network_errors],
+             "HTTP 4xx: the file or address doesn't exist or is refused. HTTP 5xx: the server failed. "
+             "'No answer': nothing came back (blocked, offline or timed out).")
     report(problems, "failed network request(s)")
 
 
-def test_no_broken_links(site: BasePage, site_map: SiteMap) -> None:
+def test_no_broken_links(site: BasePage, site_map: SiteMap, request: pytest.FixtureRequest) -> None:
     home = site_map.home
     # Logout / delete links are never requested: they could end the role's session or change data.
     internal = [u for u in site_map.links if same_site(u, home) and not SKIP_LINKS.search(urlparse(u).path)]
@@ -101,12 +168,14 @@ def test_no_broken_links(site: BasePage, site_map: SiteMap) -> None:
     site.goto_path(home)
     site.step(f"Check {len(internal)} internal and {len(external)} external link(s)")
     broken, unverified, not_reached = [], [], []
+    broken_rows: list[tuple[str, str]] = []
     for url in internal + external:
         try:
             r = site.page.request.get(url, timeout=20_000, max_redirects=10, fail_on_status_code=False)
             status = r.status
         except PlaywrightError as exc:
             broken.append(f"{url} (linked from {short(site_map.links[url], home)}): {exc.message.splitlines()[0][:120]}")
+            broken_rows.append((url, f"no answer ({exc.message.splitlines()[0][:120]})"))
             continue
         if status == 403 and refused_by_this_network(r):
             not_reached.append(f"{url}: this computer's network doesn't allow {urlparse(url).hostname}")
@@ -114,24 +183,39 @@ def test_no_broken_links(site: BasePage, site_map: SiteMap) -> None:
             unverified.append(f"{url}: HTTP {status}")
         elif status >= 400:
             broken.append(f"{url} (linked from {short(site_map.links[url], home)}): HTTP {status}")
+            broken_rows.append((url, f"HTTP {status}" + (" (page not found)" if status == 404 else "")))
     if unverified:
         print("Links that refuse automated checks (not counted as broken):\n" + "\n".join(unverified))
+    evidence(request, f"{len(broken)} broken link(s) of {len(internal) + len(external)} checked "
+             f"({len(internal)} on the site, {len(external)} to other sites)", ["Link", "Linked from", "Result"],
+             [[u, short(site_map.links[u], home), why] for u, why in broken_rows])
+    if unverified:
+        evidence(request, "Not counted as broken: these sites refuse automated checks", ["Link", "Answer"],
+                 [u.rsplit(": ", 1) for u in unverified])
+    if not_reached:
+        evidence(request, "Not checked: this computer's network doesn't allow these sites", ["Link", "Reason"],
+                 [u.split(": ", 1) for u in not_reached],
+                 "Not the site's fault. In Claude Code on the web, allow these domains in the network access.")
     if not_reached:
         print("Links not checked, because this computer's network refused them (not the site's fault; in Claude Code "
               "on the web, allow these domains in the environment's network access):\n" + "\n".join(not_reached))
     report(broken, "broken link(s)")
 
 
-def test_role_is_refused_restricted_pages(audit: SiteMap) -> None:
+def test_role_is_refused_restricted_pages(audit: SiteMap, request: pytest.FixtureRequest) -> None:
     """auth.roles.<role>.must_not_access: these pages must refuse this role (HTTP 401/403/404 or the login page)."""
     opened = [f"{path}: {what}" for path, what in audit.refused.items() if what]
     print("\n".join(f"{path}: refused" for path, what in audit.refused.items() if not what))
+    evidence(request, f"Pages role '{audit.role}' must not see", ["Page", "Result"],
+             [[path, what or "refused (good)"] for path, what in audit.refused.items()])
     report(opened, f"page(s) that role '{audit.role}' should not be able to open")
 
 
 def test_no_broken_images(audit: SiteMap, request: pytest.FixtureRequest) -> None:
     problems = [f"{short(r.url, audit.home)}: {src[:150]}" for r in loaded(audit) for src in r.broken_images]
     show(request, audit, [r.url for r in loaded(audit) if r.broken_images])
+    evidence(request, f"{len(problems)} broken image(s) on {len(loaded(audit))} page(s) checked", ["Page", "Image"],
+             [[short(r.url, audit.home), src[:150]] for r in loaded(audit) for src in r.broken_images])
     report(problems, "broken image(s)")
 
 
@@ -150,6 +234,12 @@ def test_pages_fit_every_screen_size(audit: SiteMap, settings, request: pytest.F
         for wide in r.overflow.values():
             if wide.get("shot"):
                 request.node.step_screenshots.append((f"{short(r.url, audit.home)} on {wide['screen']}", wide["shot"]))
+    evidence(request, f"{len(problems)} of {len(loaded(audit))} page(s) need sideways scrolling",
+             ["Page", "Screen", "Page width", "Widest element (the likely cause)"],
+             [[short(r.url, audit.home), w["screen"], f"{w['width']} px", w["name"]]
+              for r in loaded(audit) for w in r.overflow.values()],
+             f"Checked at: {', '.join(f'{s.name} {s.width} px' for s in settings.audit.screens)}. "
+             "The screenshots show each page at the size where it doesn't fit.")
     report(problems, "page(s) that need sideways scrolling")
 
 
@@ -170,10 +260,12 @@ def test_works_on_mobile_devices(audit: SiteMap, settings, playwright, run_dir, 
                                          run_dir / "screenshots" / f"mobile-{audit.role}")
         problems += found
         request.node.step_screenshots.extend(gallery)
+    evidence(request, f"{len(problems)} problem(s) on {', '.join(devices) or 'no phone'}", ["Problem"],
+             [[p] for p in problems])
     report(problems, "mobile problem(s)")
 
 
-def test_api_calls_work_and_are_fast(audit: SiteMap, settings) -> None:
+def test_api_calls_work_and_are_fast(audit: SiteMap, settings, request: pytest.FixtureRequest) -> None:
     """Every API call the pages made (fetch / XHR) answered below HTTP 400, within audit.api_budget_ms."""
     from site_audit.api import where
 
@@ -185,6 +277,9 @@ def test_api_calls_work_and_are_fast(audit: SiteMap, settings) -> None:
                 for c in calls if c.status >= 400]
     problems += [f"{c.method} {where(c, audit.home)} took {c.ms} ms (budget {budget} ms, on {short(c.page, audit.home)})"
                  for c in calls if c.status < 400 and c.ms > budget]
+    evidence(request, f"{len(calls)} API call(s) seen (limit {budget} ms)", ["Request", "Page", "Answer", "Time", "OK?"],
+             [[f"{c.method} {where(c, audit.home)}", short(c.page, audit.home), f"HTTP {c.status}", f"{c.ms} ms",
+               "yes" if c.status < 400 and c.ms <= budget else "no"] for c in calls[:200]])
     report(problems, "API problem(s)")
 
 
@@ -244,11 +339,16 @@ def test_pages_load_quickly(audit: SiteMap, settings, request: pytest.FixtureReq
     print("\n".join(f"{short(r.url, audit.home)}: usable after {r.ready_ms} ms" for r in timed))
     slow = [r for r in timed if r.ready_ms > budget]
     show(request, audit, [r.url for r in slow])
+    evidence(request, f"{len(slow)} of {len(timed)} page(s) slower than the limit of {budget} ms",
+             ["Page", "Usable after", "Within the limit?"],
+             [[short(r.url, audit.home), f"{r.ready_ms / 1000:.1f} s", "yes" if r.ready_ms <= budget else "no"]
+              for r in sorted(timed, key=lambda r: -r.ready_ms)],
+             "'Usable after': from opening the page until its content was shown and stopped changing.")
     report([f"{short(r.url, audit.home)}: usable after {r.ready_ms} ms (budget {budget} ms)" for r in slow],
            "slow page(s)")
 
 
-def test_served_securely(site: BasePage, site_map: SiteMap, role: str) -> None:
+def test_served_securely(site: BasePage, site_map: SiteMap, role: str, request: pytest.FixtureRequest) -> None:
     home = site_map.home  # (left out of runs it does not apply to: see conftest._not_applicable)
     problems: list[str] = []
     host = urlparse(home).hostname
@@ -273,6 +373,12 @@ def test_served_securely(site: BasePage, site_map: SiteMap, role: str) -> None:
             problems.append(f"missing {label} header")
     if "content-security-policy" not in headers and "x-frame-options" not in headers:
         problems.append("no clickjacking protection (Content-Security-Policy frame-ancestors or X-Frame-Options)")
+    rows = [["Uses HTTPS", "yes" if home.startswith("https://") else "no"]]
+    rows += [[label, "present" if header in headers else "missing"] for header, label in wanted.items()]
+    rows.append(["Clickjacking protection (CSP or X-Frame-Options)",
+                 "present" if "content-security-policy" in headers or "x-frame-options" in headers else "missing"])
+    evidence(request, "HTTPS and security headers of the home page", ["Check", "Result"], rows,
+             "; ".join(p for p in problems if p.startswith("http://")))
     report(problems, "security finding(s)")
 
 
@@ -302,6 +408,10 @@ def test_pages_are_accessible(audit: SiteMap, settings, request: pytest.FixtureR
         example = f"; e.g. {v.targets[0]}" if v.targets else ""
         failures.append(f"[{v.impact}] {v.help}{crit}: {len(where)} page(s): {listed}{example}{shared}")
     show(request, audit, [r.url for r in pages if r.accessibility])
+    evidence(request, f"Issues per page ({len(pages)} page(s) checked)", ["Page", "Issues", "Most serious"],
+             [[short(r.url, audit.home), str(len(r.accessibility)),
+               max((v.impact for v in r.accessibility), key=_IMPACT.index, default="none")] for r in pages],
+             "Each issue, who it affects and how to fix it is in the Accessibility section.")
     report(failures, f"accessibility issue type(s) at or above '{cfg.fail_on}' (fixes are in the report)")
 
 

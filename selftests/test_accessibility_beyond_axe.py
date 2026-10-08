@@ -13,11 +13,16 @@ from ui_automation.accessibility.beyond_axe import check, keyboard, page_checks,
 
 
 @pytest.fixture(scope="module")
-def page() -> Iterator[Page]:
+def pw() -> Iterator:
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        yield browser.new_page()
-        browser.close()
+        yield p
+
+
+@pytest.fixture(scope="module")
+def page(pw) -> Iterator[Page]:  # noqa: ANN001
+    browser = pw.chromium.launch()
+    yield browser.new_page()
+    browser.close()
 
 
 GOOD = """<!doctype html><html lang="en"><head><title>Good</title><style>
@@ -25,6 +30,7 @@ GOOD = """<!doctype html><html lang="en"><head><title>Good</title><style>
   .card { min-height: 40px; overflow: hidden; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner { animation: spin 1s infinite; }
+  .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 </style></head><body><main><h1>Orders</h1><h2>This month</h2><h3>Detail</h3>
   <a href="#a">Open</a> <button>Save</button> <input aria-label="Name">
   <img src="chart.png" alt="Bar chart of sales by month">
@@ -32,6 +38,9 @@ GOOD = """<!doctype html><html lang="en"><head><title>Good</title><style>
   <video src="intro.mp4" controls><track kind="captions" src="intro.vtt" srclang="en"></video>
   <div class="spinner">Working</div><button>Pause animation</button>
   <p class="card">Some text that grows with its box.</p>
+  <span class="sr-only">Text for screen readers only, hidden on purpose</span>
+  <video src="run.webm" controls muted aria-describedby="what"></video><p id="what">Silent recording of the test.</p>
+  <a href="#after">After the player</a>
 </main></body></html>"""
 
 BAD = """<!doctype html><html lang="en"><head><title>Bad</title>
@@ -64,8 +73,32 @@ def rules(found) -> dict[str, list[str]]:
 
 
 def test_a_well_built_page_passes_everything(page: Page) -> None:
+    """Also no false alarms for screen-reader-only text, a silent described video, or Tab moving through a video
+    player's own controls (found when SiteSweep checked its own report)."""
     page.set_content(GOOD)
     assert check(page) == []
+
+
+def test_a_well_built_page_passes_everything_in_firefox(pw) -> None:  # noqa: ANN001
+    """Firefox keeps naming the <video> while Tab moves through its play / volume / full-screen buttons."""
+    from ui_automation.browsers import missing_browsers
+
+    if missing_browsers(["firefox"]):
+        pytest.skip("Firefox is not installed here (CI installs it: python -m playwright install firefox)")
+    browser = pw.firefox.launch()
+    page = browser.new_page()
+    page.set_content(GOOD)
+    assert check(page) == []
+    # Tab past the last link: Firefox keeps naming it while focus is outside the page. The end, not a trap.
+    page.set_content('<main><h1>Runs</h1>' + "".join(f'<a href="#r{i}">Run {i}</a> ' for i in range(12)) + "</main>")
+    assert check(page) == []
+    # A closed section's content can't be reached by Tab, so it doesn't count as missed.
+    page.set_content('<main><h1>Run</h1><a href="#a">A</a><details><summary>Technical details</summary>'
+                     '<pre tabindex="0">trace</pre></details></main>')
+    assert check(page) == []
+    page.set_content(TRAP)  # and a real trap is still found
+    assert [v.rule for v in check(page)][:1] == ["keyboard-trap"]
+    browser.close()
 
 
 def test_each_planted_problem_is_found(page: Page) -> None:
