@@ -10,5 +10,8 @@ python -m pip install --quiet --disable-pip-version-check -r requirements-dev.tx
 # Every browser (Chrome's engine, Firefox, Safari's engine). Needs the environment's network access to allow
 # cdn.playwright.dev and playwright.download.prss.microsoft.com; without them the session still starts, and
 # runs use the Chromium that comes with it.
-python -m playwright install --with-deps chromium firefox webkit \
+# The system libraries they need come from the package managers, which the default network access allows.
+python -m playwright install-deps chromium firefox webkit \
+  || echo "SiteSweep: could not install the browsers' system libraries." >&2
+python -m playwright install chromium firefox webkit \
   || echo "SiteSweep: could not download the browsers. Allow cdn.playwright.dev and playwright.download.prss.microsoft.com in the environment's network access." >&2

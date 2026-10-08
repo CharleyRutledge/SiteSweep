@@ -11,6 +11,7 @@ Point it at any site: python -m ui_automation --config config/<site>.yaml -- sit
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -246,6 +247,8 @@ def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_
         failure = request.failure or "failed"
         # ERR_ABORTED: the browser cancelled it because the crawler moved on to the next page, not a fault.
         if "ERR_ABORTED" not in failure and not request.is_navigation_request() and len(network_errors) < 50:
+            if "TUNNEL_CONNECTION_FAILED" in failure:
+                failure += ": refused by this computer's network, not by the site"
             network_errors.append(f"{request.method} {where(request.url)} -> no answer ({failure})")
 
     page.on("response", on_response)
@@ -426,6 +429,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     if dropped:
         config.hook.pytest_deselected(items=dropped)
         items[:] = keep
+    reasons += [f"In {why}" for why in os.environ.get("WEB_UI_NOT_RUN", "").splitlines() if why]
     config._site_audit_not_run = reasons  # type: ignore[attr-defined]
 
 

@@ -137,6 +137,23 @@ def _run_pytest(cmd: list[str], root: Path) -> int:
             print("\nInterrupted: waiting for pytest to save the results so far...", file=sys.stderr)
 
 
+def _without_browsers(args: list[str], drop: set[str]) -> list[str]:
+    """pytest arguments without `--browser X` / `--browser=X` for the browsers in `drop`."""
+    out: list[str] = []
+    skip = False
+    for i, a in enumerate(args):
+        if skip:
+            skip = False
+            continue
+        if a == "--browser" and i + 1 < len(args) and args[i + 1] in drop:
+            skip = True
+            continue
+        if a.startswith("--browser=") and a.split("=", 1)[1] in drop:
+            continue
+        out.append(a)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m ui_automation",
@@ -296,10 +313,27 @@ def main(argv: list[str] | None = None) -> int:
     # The mobile devices' browsers are needed only when the site audit runs.
     audit_run = any("site_audit" in a for a in pytest_args)
     devices = browsers_for_run(list(settings.audit.mobile_devices), settings.browser_rotation) if audit_run else []
-    problem = ensure_browsers(wanted + device_engines(devices))
+    engines = device_engines(devices)
+    problem = ensure_browsers(wanted + engines)
     if problem:
         print(problem, file=sys.stderr)
         return 2
+    # A browser that can't work on this computer (missing system libraries, or a network proxy it doesn't trust)
+    # is left out and listed under "Not run", instead of failing every test with the same error.
+    from ui_automation.browsers import usable_browsers
+
+    usable, why_not = usable_browsers(wanted + engines, settings.base_url)
+    for why in why_not:
+        print(f"Not run in {why}", flush=True)
+    kept = [b for b in wanted if b in usable]
+    if not kept:
+        print("No browser can test this site on this computer: " + "; ".join(why_not), file=sys.stderr)
+        return 2
+    if why_not:
+        os.environ["WEB_UI_BROWSERS"] = ",".join(kept)  # read again by the test run (conftest.py)
+        os.environ["WEB_UI_UNUSABLE_ENGINES"] = ",".join(b for b in dict.fromkeys(wanted + engines) if b not in usable)
+        os.environ["WEB_UI_NOT_RUN"] = "\n".join(why_not)
+        pytest_args = _without_browsers(pytest_args, set(wanted) - set(kept))
 
     reports_dir = reports_root(root)
     try:

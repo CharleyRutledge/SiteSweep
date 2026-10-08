@@ -59,7 +59,10 @@ def hosts_the_page_needs(url: str, proxy: dict | None = None, timeout_ms: int = 
 
     failed: set[str] = set()
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, proxy=proxy, **launch_options("chromium"))
+        options = launch_options("chromium")
+        if proxy:
+            options["proxy"] = proxy
+        browser = p.chromium.launch(headless=True, **options)
         try:
             page = browser.new_page(ignore_https_errors=True)
             page.on("requestfailed", lambda r: failed.add(urlparse(r.url).hostname or "")

@@ -36,6 +36,17 @@ Use the AskUserQuestion tool. Ask together:
    Don't offer `config/settings.yaml` or `config/settings.example.yaml`: they are templates.
 2. **How thorough.** "Quick: today's browser and phone" (the default, about 4 minutes for a small site) or
    "Full: every browser and phone" (`--all-browsers`, about three times longer, good before a release).
+3. **What kind of testing** (multiSelect: they can pick several). Say that picking all four is the full audit:
+   - "Pages, links and speed": every page loads with a title and heading, no JavaScript or network errors, no
+     broken links or images, pages load quickly.
+   - "Accessibility": WCAG 2.1 AA (EN 301 549), with the fix for each issue.
+   - "Phones and screen sizes": no sideways scrolling at any screen size, and real phone profiles.
+   - "Security, logins and API": HTTPS and security headers, each role is refused pages it shouldn't see, and
+     the app's API answers correctly and keeps roles' data apart.
+4. **Legal checks** (multiSelect): "Irish/EU website requirements" (privacy notice, cookie consent before
+   tracking, accessibility statement, company and contact details), or "None".
+
+If they don't pick any kind of testing, run everything.
 
 Don't ask for passwords. Logins come from the `.env` file on their computer only. If a role's variables are
 missing, the run says which ones; tell them to add those lines to `.env` themselves.
@@ -62,8 +73,22 @@ You can't change the network settings yourself: only they can, in the environmen
 
 From the repository folder:
 
-- A website: `python -m ui_automation --config config/site-audit.yaml --url <ADDRESS> [--all-browsers] -- site_audit`
-- A settings file: `python -m ui_automation --config <FILE> [--all-browsers] -- site_audit`
+- A website: `python -m ui_automation --config config/site-audit.yaml --url <ADDRESS> [--all-browsers] -- site_audit [-k "<CHECKS>"]`
+- A settings file: `python -m ui_automation --config <FILE> [--all-browsers] -- site_audit [-k "<CHECKS>"]`
+
+`<CHECKS>` comes from their choice of testing: join with ` or ` the words for each choice, always starting with
+`crawl` (it finds the pages every other check uses). Leave out `-k` when they chose every kind of testing and the
+Irish/EU requirements.
+
+| Choice | Words |
+|--------|-------|
+| Pages, links and speed | `title or javascript or network or broken_links or broken_images or load_quickly` |
+| Accessibility | `accessible` |
+| Phones and screen sizes | `screen_size or mobile` |
+| Security, logins and API | `served_securely or refused or api` |
+| Irish/EU website requirements | `website_requirements` |
+
+For example, accessibility and phones only: `-k "crawl or accessible or screen_size or mobile"`.
 
 The run is read-only: it opens pages and sends GET requests; it never submits forms or changes data.
 It can take several minutes; run it in the background and tell the person roughly how long it will take.
@@ -81,11 +106,14 @@ If it stops before testing:
 
 Read `reports/latest/summary.json` (and `reports/latest/claude_summary.txt` if it exists). Then reply with:
 
-1. **One line:** passed or failed, the site, how many checks passed / failed.
+1. **One line:** passed or failed, the site, how many checks passed / failed, and which kinds of testing ran.
 2. **What failed**, grouped by cause, worst first. For each: what's wrong in plain words, which pages / roles /
    browsers, and the fix (the report's suggested fixes are copyable). Group the same problem on many pages as
    one item: it is usually one fix in a shared header, footer or style.
-3. **What wasn't run and why** (the "Not run" list at the end of the run), if anything.
+3. **What wasn't run and why** (the "Not run" list at the end of the run), if anything. A browser can be listed there
+   when it can't work on this computer: missing system libraries, or (in a cloud session) Firefox not trusting
+   the session's network proxy certificate. Say that this is about the computer the test ran on, not the
+   site, and that their own computer runs every browser.
 4. **Where the full report is:**
    - On their computer: `reports/latest/summary.html` (Ctrl+click the link in the command output).
    - In a cloud session: send `reports/latest/summary.html` with the SendUserFile tool so they can open it.
