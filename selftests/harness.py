@@ -16,7 +16,10 @@ import yaml
 REPO = Path(__file__).resolve().parents[1]
 SECRET_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
               "TELEGRAM_API_BASE", "EMAIL_SMTP_USER", "EMAIL_SMTP_PASSWORD", "WEB_UI_CONFIG", "WEB_UI_RUN_DIR",
-              "WEB_UI_CHROMIUM")
+              "WEB_UI_CHROMIUM",
+              # The self-tests use servers on this computer only: a proxy (Claude Code on the web has one) would
+              # change how the failures they provoke look. The tests about proxies set their own.
+              "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy")
 
 
 @dataclass

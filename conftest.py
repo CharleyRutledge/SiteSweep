@@ -51,7 +51,9 @@ def pytest_configure(config: pytest.Config) -> None:
     if not config.getoption("--browser"):
         from ui_automation.browsers import browsers_for_run
 
-        config.option.browser = browsers_for_run(settings.browsers or (settings.browser,), settings.browser_rotation)
+        chosen = os.environ.get("WEB_UI_BROWSERS")  # the CLI left out a browser that can't work on this computer
+        config.option.browser = (chosen.split(",") if chosen else
+                                 browsers_for_run(settings.browsers or (settings.browser,), settings.browser_rotation))
 
     if not _argv_has("--video"):
         config.option.video = settings.video_mode

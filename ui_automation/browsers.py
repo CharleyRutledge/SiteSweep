@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from datetime import date, datetime
@@ -23,10 +24,30 @@ def preinstalled_chromium() -> str:
     return ""
 
 
-def launch_options(name: str) -> dict[str, str]:
-    """Extra launch options for browser `name`: the stand-in Chromium when ensure_browsers chose one."""
+def proxy_settings() -> dict[str, str] | None:
+    """The computer's HTTPS proxy (HTTPS_PROXY / NO_PROXY), for Playwright. Browsers find it on their own, but the
+    requests Playwright makes outside the page (link checks, the HTTPS check, API replays) only use it when told."""
+    server = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
+    if not server:
+        return None
+    raw = os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or ""
+    # Host names and plain addresses only: every browser understands those. This computer always goes direct.
+    names = ["localhost", "127.0.0.1"] + [h.strip() for h in raw.split(",")
+                                          if re.fullmatch(r"\.?[A-Za-z0-9.-]+", h.strip() or "-")]
+    return {"server": server, "bypass": ",".join(dict.fromkeys(names))}
+
+
+def launch_options(name: str) -> dict:
+    """Extra launch options for browser `name`: the computer's proxy, and the stand-in Chromium when
+    ensure_browsers chose one."""
+    options: dict = {}
     path = os.environ.get("WEB_UI_CHROMIUM", "")
-    return {"executable_path": path} if name == "chromium" and path else {}
+    if name == "chromium" and path:
+        options["executable_path"] = path
+    proxy = proxy_settings()
+    if proxy:
+        options["proxy"] = proxy
+    return options
 
 
 def missing_browsers(names: list[str]) -> list[str]:
@@ -72,6 +93,60 @@ def ensure_browsers(names: list[str]) -> str:
             + (" (on Linux add --with-deps)" if sys.platform.startswith("linux") else "")
             + (". In Claude Code on the web, the environment's network access must allow "
                f"{' and '.join(DOWNLOAD_HOSTS)}" if os.environ.get("CLAUDE_CODE_REMOTE") == "true" else ""))
+
+
+# The proxy re-signs HTTPS with its own certificate, which a browser with its own certificate store may not trust.
+_CERT_ERRORS = ("SEC_ERROR_UNKNOWN_ISSUER", "ERR_CERT_AUTHORITY_INVALID", "unable to get local issuer",
+                "self signed certificate in certificate chain", "SSL peer certificate or SSH remote key was not OK")
+_NAMES = {"chromium": "Chrome's engine (Chromium)", "firefox": "Firefox", "webkit": "Safari's engine (WebKit)"}
+
+
+def _try(name: str, url: str) -> str:
+    """'' when `name` starts and, behind a proxy, can open the https site; else the error."""
+    from playwright.sync_api import Error as PlaywrightError, sync_playwright
+
+    from ui_automation.local import is_local  # local addresses never go through the proxy
+
+    with sync_playwright() as p:
+        try:
+            browser = getattr(p, name).launch(headless=True, **launch_options(name))
+        except PlaywrightError as exc:
+            return str(exc)
+        try:
+            if proxy_settings() and url.lower().startswith("https://") and not is_local(url):
+                browser.new_page().goto(url, wait_until="commit", timeout=20_000)
+        except PlaywrightError as exc:
+            message = str(exc)
+            return message if any(e in message for e in _CERT_ERRORS) else ""  # anything else is the site's to report
+        finally:
+            browser.close()
+    return ""
+
+
+def usable_browsers(names: list[str], url: str) -> tuple[list[str], list[str]]:
+    """The browsers in `names` that can test `url` on this computer, and why each other one can't.
+    Missing system libraries are installed when allowed (Linux, as root); nothing else is changed."""
+    usable: list[str] = []
+    why_not: list[str] = []
+    for name in dict.fromkeys(names):
+        problem = _try(name, url)
+        if "missing dependencies" in problem and sys.platform.startswith("linux") and os.geteuid() == 0:
+            print(f"Installing the system libraries {_NAMES.get(name, name)} needs ...", flush=True)
+            subprocess.run([sys.executable, "-m", "playwright", "install-deps", name], check=False)
+            problem = _try(name, url)
+        label = _NAMES.get(name, name)
+        if not problem:
+            usable.append(name)
+        elif "missing dependencies" in problem:
+            why_not.append(f"{label}: this computer is missing system libraries it needs "
+                           f"(run: sudo python -m playwright install-deps {name})")
+        elif any(e in problem for e in _CERT_ERRORS):
+            why_not.append(f"{label}: it doesn't trust the certificate of this computer's network proxy, so it can't "
+                           "open HTTPS sites here (it works on a computer without that proxy, e.g. your own)")
+        else:
+            first = problem.strip().splitlines()[0].replace("BrowserType.launch: ", "")
+            why_not.append(f"{label}: could not start ({first[:300]})")
+    return usable, why_not
 
 
 def irish_today() -> date:

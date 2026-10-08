@@ -85,7 +85,10 @@ Read `reports/latest/summary.json` (and `reports/latest/claude_summary.txt` if i
 2. **What failed**, grouped by cause, worst first. For each: what's wrong in plain words, which pages / roles /
    browsers, and the fix (the report's suggested fixes are copyable). Group the same problem on many pages as
    one item: it is usually one fix in a shared header, footer or style.
-3. **What wasn't run and why** (the "Not run" list at the end of the run), if anything.
+3. **What wasn't run and why** (the "Not run" list at the end of the run), if anything. A browser can be listed there
+   when it can't work on this computer: missing system libraries, or (in a cloud session) Firefox not trusting
+   the session's network proxy certificate. Say that this is about the computer the test ran on, not the
+   site, and that their own computer runs every browser.
 4. **Where the full report is:**
    - On their computer: `reports/latest/summary.html` (Ctrl+click the link in the command output).
    - In a cloud session: send `reports/latest/summary.html` with the SendUserFile tool so they can open it.

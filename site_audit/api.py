@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import Error as PlaywrightError, Playwright
 
 from site_audit.conftest import SKIP_LINKS, ApiCall, SiteMap
+from ui_automation.browsers import proxy_settings
 from ui_automation.config import Settings, accepts_self_signed
 
 
@@ -56,6 +57,7 @@ def replay(playwright: Playwright, settings: Settings, call: ApiCall, *, as_site
         if token:
             headers["authorization"] = token
     context = playwright.request.new_context(
+        proxy=proxy_settings(),
         ignore_https_errors=accepts_self_signed(settings),
         storage_state=as_site.state if as_site is not None else None,
         extra_http_headers=headers or None,

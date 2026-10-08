@@ -7,6 +7,7 @@ so one run shows the whole picture.
 
 from __future__ import annotations
 
+import os
 from urllib.parse import urlparse
 
 import pytest
@@ -154,7 +155,10 @@ def test_works_on_mobile_devices(audit: SiteMap, settings, playwright, run_dir, 
     from ui_automation.browsers import browsers_for_run
 
     devices = browsers_for_run(list(settings.audit.mobile_devices), settings.browser_rotation)
-    print(f"Checked on: {', '.join(devices)}")
+    unusable = [e for e in os.environ.get("WEB_UI_UNUSABLE_ENGINES", "").split(",") if e]
+    if unusable:  # their browser can't work on this computer: listed under "Not run"
+        devices = [d for d in devices if playwright.devices.get(d, {}).get("default_browser_type") not in unusable]
+    print(f"Checked on: {', '.join(devices) or 'none (see Not run)'}")
     problems: list[str] = []
     for device in devices:
         found, gallery = check_on_device(playwright, settings, audit, device,
