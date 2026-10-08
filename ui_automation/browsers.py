@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import date, datetime
@@ -108,8 +109,10 @@ def _try(name: str, url: str) -> str:
     from ui_automation.local import is_local  # local addresses never go through the proxy
 
     with sync_playwright() as p:
+        from ui_automation.firefox_profile import launch
+
         try:
-            browser = getattr(p, name).launch(headless=True, **launch_options(name))
+            browser = launch(getattr(p, name), headless=True, **launch_options(name))
         except PlaywrightError as exc:
             return str(exc)
         try:
@@ -134,6 +137,16 @@ def usable_browsers(names: list[str], url: str) -> tuple[list[str], list[str]]:
             print(f"Installing the system libraries {_NAMES.get(name, name)} needs ...", flush=True)
             subprocess.run([sys.executable, "-m", "playwright", "install-deps", name], check=False)
             problem = _try(name, url)
+        if name == "firefox" and any(e in problem for e in _CERT_ERRORS) and proxy_settings():
+            # Firefox carries its own list of trusted authorities: give it the computer's (checks stay on).
+            from ui_automation.firefox_profile import ENV, build_profile
+
+            profile = build_profile()
+            if profile:
+                os.environ[ENV] = profile  # read again by the test run (conftest.py, site audit)
+                problem = _try(name, url)
+                if problem:
+                    del os.environ[ENV]
         label = _NAMES.get(name, name)
         if not problem:
             usable.append(name)
@@ -141,8 +154,11 @@ def usable_browsers(names: list[str], url: str) -> tuple[list[str], list[str]]:
             why_not.append(f"{label}: this computer is missing system libraries it needs "
                            f"(run: sudo python -m playwright install-deps {name})")
         elif any(e in problem for e in _CERT_ERRORS):
+            fix = (" (install certutil so it can be given this computer's list: sudo apt-get install libnss3-tools)"
+                   if name == "firefox" and not shutil.which("certutil") else
+                   " (it works on a computer without that proxy, e.g. your own)")
             why_not.append(f"{label}: it doesn't trust the certificate of this computer's network proxy, so it can't "
-                           "open HTTPS sites here (it works on a computer without that proxy, e.g. your own)")
+                           f"open HTTPS sites here{fix}")
         else:
             first = problem.strip().splitlines()[0].replace("BrowserType.launch: ", "")
             why_not.append(f"{label}: could not start ({first[:300]})")

@@ -111,7 +111,8 @@ jobs:
           python -m pip install -r requirements-dev.txt
           # Firefox too: the self-tests check that an audit runs in more than one browser.
           python -m playwright install --with-deps chromium firefox
-          sudo apt-get install -y --no-install-recommends ffmpeg
+          # certutil: the self-tests check Firefox with a profile that trusts a test certificate authority.
+          sudo apt-get install -y --no-install-recommends ffmpeg libnss3-tools
 
       - name: Run self-tests
         # -n auto: one worker per CPU core (each test starts its own servers on free ports and works in its own

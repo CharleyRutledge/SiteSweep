@@ -14,7 +14,7 @@ import pytest
 from playwright.sync_api import Error as PlaywrightError
 
 from pages.base_page import BasePage
-from site_audit.conftest import SKIP_LINKS, SiteMap, same_site, short, show
+from site_audit.conftest import SKIP_LINKS, SiteMap, refused_by_this_network, same_site, short, show
 from ui_automation.compliance import Monitor, as_dicts, check_page
 
 # Sites that refuse automated link checks (they answer bots with these) are "unverified", not broken.
@@ -100,7 +100,7 @@ def test_no_broken_links(site: BasePage, site_map: SiteMap) -> None:
         external = []
     site.goto_path(home)
     site.step(f"Check {len(internal)} internal and {len(external)} external link(s)")
-    broken, unverified = [], []
+    broken, unverified, not_reached = [], [], []
     for url in internal + external:
         try:
             r = site.page.request.get(url, timeout=20_000, max_redirects=10, fail_on_status_code=False)
@@ -108,12 +108,17 @@ def test_no_broken_links(site: BasePage, site_map: SiteMap) -> None:
         except PlaywrightError as exc:
             broken.append(f"{url} (linked from {short(site_map.links[url], home)}): {exc.message.splitlines()[0][:120]}")
             continue
-        if status in UNVERIFIABLE and not same_site(url, home):
+        if status == 403 and refused_by_this_network(r):
+            not_reached.append(f"{url}: this computer's network doesn't allow {urlparse(url).hostname}")
+        elif status in UNVERIFIABLE and not same_site(url, home):
             unverified.append(f"{url}: HTTP {status}")
         elif status >= 400:
             broken.append(f"{url} (linked from {short(site_map.links[url], home)}): HTTP {status}")
     if unverified:
         print("Links that refuse automated checks (not counted as broken):\n" + "\n".join(unverified))
+    if not_reached:
+        print("Links not checked, because this computer's network refused them (not the site's fault; in Claude Code "
+              "on the web, allow these domains in the environment's network access):\n" + "\n".join(not_reached))
     report(broken, "broken link(s)")
 
 
