@@ -11,6 +11,8 @@ python -m pip install --quiet --disable-pip-version-check -r requirements-dev.tx
 # cdn.playwright.dev and playwright.download.prss.microsoft.com; without them the session still starts, and
 # runs use the Chromium that comes with it.
 # The system libraries they need come from the package managers, which the default network access allows.
+# certutil lets SiteSweep give Firefox this computer's list of trusted authorities (see firefox_profile.py).
+(apt-get install -y -q --no-install-recommends libnss3-tools >/dev/null 2>&1 || true)
 python -m playwright install-deps chromium firefox webkit \
   || echo "SiteSweep: could not install the browsers' system libraries." >&2
 python -m playwright install chromium firefox webkit \

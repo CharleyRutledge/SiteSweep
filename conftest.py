@@ -117,6 +117,24 @@ def base_url(settings: Settings) -> str:
 
 
 @pytest.fixture(scope="session")
+def launch_browser(browser_type_launch_args: dict[str, Any], browser_type, connect_options):  # noqa: ANN001
+    """pytest-playwright's launcher, except that Firefox uses a profile trusting this computer's certificate
+    authorities when the CLI found it needs one (ui_automation/firefox_profile.py)."""
+    import json
+
+    from ui_automation.firefox_profile import launch
+
+    def _launch(**kwargs: Any):  # noqa: ANN202 - a Browser, or the trusted-profile Firefox that acts as one
+        options = {**browser_type_launch_args, **kwargs}
+        if connect_options:
+            headers = {"x-playwright-launch-options": json.dumps(options), **(connect_options.get("headers") or {})}
+            return browser_type.connect(**{**connect_options, "headers": headers})
+        return launch(browser_type, **options)
+
+    return _launch
+
+
+@pytest.fixture(scope="session")
 def browser_type_launch_args(pytestconfig: pytest.Config, settings: Settings, browser_name: str) -> dict[str, Any]:
     """Align launch options with settings.yaml; keep pytest-playwright CLI flags."""
     from ui_automation.browsers import launch_options as stand_in

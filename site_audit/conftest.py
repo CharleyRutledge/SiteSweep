@@ -24,6 +24,7 @@ from playwright.sync_api import Browser, Error as PlaywrightError, Page
 from pages.base_page import BasePage
 from ui_automation.blocking import blocked_reason
 from ui_automation.browsers import launch_options
+from ui_automation.firefox_profile import launch as launch_browser
 from ui_automation.config import Settings, accepts_self_signed, role_area
 
 # Links to files rather than pages: checked as links, never opened as pages.
@@ -214,6 +215,16 @@ def _measure(page: Page, result: PageResult, settings: Settings, shots: Path | N
 
         result.accessibility = list(result.accessibility) + more_checks(page)
     result.js_errors = list(js_errors)  # errors thrown while loading and during the checks
+
+
+def refused_by_this_network(response) -> bool:  # noqa: ANN001 - APIResponse
+    """A 403 written by this computer's network (the proxy of Claude Code on the web), not by the site."""
+    if "text/plain" not in response.headers.get("content-type", ""):
+        return False
+    try:
+        return response.text()[:200].startswith("request blocked:")
+    except PlaywrightError:
+        return False
 
 
 def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_signed_ok: bool = False,
@@ -545,7 +556,7 @@ def check_on_device(playwright, settings: Settings, site: SiteMap, device: str, 
         return [f"{device}: not a known device{' (did you mean: ' + ', '.join(near) + '?)' if near else ''}"], []
     profile = dict(playwright.devices[device])
     engine = profile.pop("default_browser_type")
-    browser = getattr(playwright, engine).launch(headless=settings.headless, **launch_options(engine))
+    browser = launch_browser(getattr(playwright, engine), headless=settings.headless, **launch_options(engine))
     context = browser.new_context(**profile, storage_state=site.state, ignore_https_errors=accepts_self_signed(settings))
     page = context.new_page()
     page.set_default_timeout(settings.timeout_ms)
