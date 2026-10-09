@@ -53,8 +53,35 @@ def check_one(url: str, timeout: float = TIMEOUT) -> dict:
     return record
 
 
-def check(urls: list[str], timeout: float = TIMEOUT) -> list[dict]:
-    return [check_one(u, timeout) for u in urls]
+def check_mcp_one(url: str, timeout: float = TIMEOUT, token_env: str = "") -> dict:
+    """An MCP server is up when it completes the handshake (initialize), not merely when its address answers."""
+    import os
+
+    from ui_automation.mcp_audit import Client, HttpTransport, McpError
+
+    started = time.monotonic()
+    record = {"at": _now(), "url": url, "up": None, "status": None, "ms": None, "error": ""}
+    transport = HttpTransport(url, os.environ.get(token_env, "") if token_env else "", timeout=timeout)
+    try:
+        reply = Client(transport).initialize()
+        result = (reply.body or {}).get("result")
+        record.update(status=reply.status, up=bool(result))
+        if not result:
+            message = ((reply.body or {}).get("error") or {}).get("message")
+            record["error"] = (message or f"HTTP {reply.status}: no handshake")[:200]
+    except McpError as exc:
+        if "Tunnel connection failed: 403" in str(exc) or "ProxyError" in str(exc):
+            record["error"] = "not checked: this computer's network refuses the site"
+        else:
+            record.update(up=False, error=str(exc)[:200])
+    finally:
+        transport.close()
+    record["ms"] = int((time.monotonic() - started) * 1000)
+    return record
+
+
+def check(urls: list[str], timeout: float = TIMEOUT, mcp: bool = False, token_env: str = "") -> list[dict]:
+    return [check_mcp_one(u, timeout, token_env) if mcp else check_one(u, timeout) for u in urls]
 
 
 def _time(at: str) -> datetime:
@@ -99,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("urls", nargs="*")
     c.add_argument("--config", help="Or a settings file: its base_url is checked")
     c.add_argument("--timeout", type=float, default=TIMEOUT)
+    c.add_argument("--mcp", action="store_true", help="The addresses are MCP servers: up = completes the handshake")
+    c.add_argument("--token-env", default="", help="With --mcp: environment variable holding the login token")
     s = sub.add_parser("stats", help="Uptime, MTBF and MTTR from records (JSON lines, or a JSON list)")
     s.add_argument("file")
     args = parser.parse_args(argv)
@@ -111,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         if not urls or not all(u.lower().startswith(("http://", "https://")) for u in urls):
             print("Give each address starting with http:// or https://", file=sys.stderr)
             return 2
-        for record in check(urls, args.timeout):
+        for record in check(urls, args.timeout, args.mcp, args.token_env):
             print(json.dumps(record))
         return 0
     text = open(args.file, encoding="utf-8").read().strip()

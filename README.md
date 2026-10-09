@@ -153,6 +153,32 @@ shows uptime, every outage (when it went down, when it came back, why), MTBF (ti
 and the page's data can only be read by its owner, even if the page is shared. An hour when the checking
 network couldn't reach the site counts as "not checked", never as down.
 
+## Test an MCP server
+
+The same kinds of checks for a Model Context Protocol server, safe checks only (type `/test-mcp` in Claude):
+
+    python -m ui_automation.mcp_audit https://example.ie/mcp [--token-env NAME]
+    python -m ui_automation.mcp_audit --command "npx -y @example/mcp-server"
+    python -m ui_automation.mcp_audit --config config/private/mcp.yaml   # see config/mcp.example.yaml
+
+- **Handshake and lists:** `initialize`, `ping`, the standard error for an unknown request, and every tool,
+  resource and prompt listed (all pages), each tool with a usable name, a description and an input schema
+- **Speed:** the handshake and the tool list against `budget_ms`
+- **Security:** HTTPS, refusing requests from other websites (`Origin`, which the spec requires against DNS
+  rebinding), CORS, refusing callers without a login and publishing where to log in (OAuth protected resource
+  metadata, RFC 9728), and no software versions or stack traces given away
+- **Tool safety:** instructions hidden in tool descriptions that speak to the AI ("tool poisoning": ignore your
+  instructions, don't tell the user, read `~/.ssh`, send data elsewhere, invisible characters), and tools that
+  change things without saying so (`destructiveHint`)
+- **Logins:** each login (a token from an environment variable) sees the tools it should and none it shouldn't
+- **Compatibility:** streamable HTTP, the older HTTP+SSE connection, local commands (stdio), and protocol
+  versions 2025-06-18, 2025-03-26 and 2024-11-05
+- **Read-only tools:** only the tools you list under `call_readonly`, with your inputs, and only if the server
+  marks them read-only, are called; nothing that changes data is ever called
+
+Uptime, MTBF and MTTR work the same way as for websites: `/reliability`, where an MCP server counts as up only
+when it completes the handshake (`python -m ui_automation.reliability check --mcp <address>`).
+
 ## Audit any website
 
 `site_audit/` audits a whole site from its `base_url`. It finds the pages by following the site's own links,

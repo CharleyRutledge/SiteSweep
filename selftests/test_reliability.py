@@ -137,3 +137,18 @@ def test_the_command_line(site: str, tmp_path: Path, capsys: pytest.CaptureFixtu
     capsys.readouterr()
     assert reliability.main(["stats", str(history)]) == 0
     assert json.loads(capsys.readouterr().out)["mttr_minutes"] == 60
+
+
+def test_an_mcp_server_is_up_only_when_it_completes_the_handshake(site: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    import mcp_servers
+
+    for name in ("HTTP_PROXY", "http_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("NOTES_ADMIN_TOKEN", "admin-token")
+    for url in mcp_servers.http_server(auth=True):
+        up = reliability.check_mcp_one(url, 5, "NOTES_ADMIN_TOKEN")
+        refused = reliability.check_mcp_one(url, 5)  # no login: the server refuses the handshake
+    assert up["up"] is True and up["status"] == 200, up
+    assert refused["up"] is False and refused["error"] == "HTTP 401: no handshake", refused
+    page = reliability.check_mcp_one(site + "/", 5)  # a web page answers, but it is no MCP server
+    assert page["up"] is False, page

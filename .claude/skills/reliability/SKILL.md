@@ -25,7 +25,8 @@ Check that each address starts with `https://` or `http://` and is not on their 
 In a cloud session, run `python -m ui_automation.reach <HOME ADDRESS>` first and follow what it says (the
 Routine runs in this same environment, so a site this network refuses would only ever show "not checked").
 
-Then run `python -m ui_automation.reliability check <ADDRESSES>` and show the result in one line per address
+Then run `python -m ui_automation.reliability check <ADDRESSES>` (for an MCP server add `--mcp`, and
+`--token-env NAME` if it needs a login: it is up only when it completes the MCP handshake) and show the result in one line per address
 (up or down, HTTP status, time in ms). If one is down, ask before going on: it may be a typo.
 
 ## 3. Their private page
@@ -58,7 +59,7 @@ name, schedule, addresses, and the page it writes to. Then call `create_trigger`
 ```
 SiteSweep reliability check. In the SiteSweep repository (github.com/CharleyRutledge/SiteSweep; install its
 requirements.txt if `python -c "import ui_automation"` fails), run:
-  python -m ui_automation.reliability check <ADDRESSES>
+  python -m ui_automation.reliability check <ADDRESSES>   (for MCP servers: add --mcp [--token-env NAME])
 Each output line is one JSON record. With the ArtifactData tool on <PAGE LINK>, `get` the document
 checks/<YYYY-MM-DD> (the records' "at" date, UTC). If it exists, add the new records to the end of its "checks"
 list and `set` it; if not, `set` it to {"day": "<YYYY-MM-DD>", "checks": [<records>]}. Write nothing else,
