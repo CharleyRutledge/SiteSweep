@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 ENV = "WEB_UI_FIREFOX_PROFILE"  # set by the CLI when this Firefox is needed; the test run reads it
+LAUNCHED: dict[str, str] = {}  # browser name -> version, for each browser this run started (the report shows them)
 
 
 def certificate_bundle() -> str:
@@ -141,5 +142,8 @@ def launch(browser_type: Any, **launch_options: Any) -> Any:
     """browser_type.launch(), or the trusted-profile Firefox when the CLI chose it for this run."""
     template = os.environ.get(ENV, "")
     if browser_type.name == "firefox" and template and Path(template).is_dir():
-        return ProfileBrowser(browser_type, launch_options, template)
-    return browser_type.launch(**launch_options)
+        browser = ProfileBrowser(browser_type, launch_options, template)
+    else:
+        browser = browser_type.launch(**launch_options)
+        LAUNCHED[browser_type.name] = browser.version
+    return browser

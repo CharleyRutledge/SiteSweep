@@ -92,6 +92,7 @@ class RunSummary:
     base_url: str = ""
     name: str = ""  # what this run is called in reports (settings name, default the site's host)
     run_url: str = ""  # link to the CI run, when running in GitHub Actions
+    environment: dict = field(default_factory=dict)  # {"os": ..., "browsers": {name: version}} (compatibility)
 
     @property
     def total(self) -> int:
@@ -142,6 +143,7 @@ class RunSummary:
             "tracing_mode": self.tracing_mode,
             "base_url": self.base_url,
             "name": self.name,
+            "environment": self.environment,
             "tests": [asdict(t) for t in self.tests],
         }
 
@@ -160,6 +162,7 @@ class RunSummary:
             tracing_mode=data.get("tracing_mode", ""),
             base_url=data.get("base_url", ""),
             name=data.get("name", ""),
+            environment=data.get("environment") or {},
             tests=[TestResult(**t) for t in data.get("tests", [])],
         )
         report = run_dir / (data.get("report_html") or "report.html")

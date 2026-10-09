@@ -138,6 +138,21 @@ are mapped (the control a result is evidence for), not assessed: that needs an a
 
 This finds what is missing or left untranslated; it doesn't judge the quality of a translation.
 
+**Compatibility.** The report's Compatibility section is a grid of every check in every browser (Chrome's
+engine, Firefox, Safari's engine) with the operating system and browser versions used, and a table of the
+phones checked. Browsers run on the computer doing the test, so to cover another operating system, run
+SiteSweep there too (for a Mac, the Claude Desktop app) and combine the runs into one grid:
+
+    python -m ui_automation.reporting.compat reports/<run> reports/<run from the Mac> -o compatibility.html
+
+**Reliability: uptime, MTBF and MTTR.** Type `/reliability` in Claude. It asks which pages to watch, then
+sets up a private claude.ai page and an hourly Claude Routine on your own account. Each hour the Routine checks
+the pages (`python -m ui_automation.reliability check <addresses>`) and adds the result to your page. The page
+shows uptime, every outage (when it went down, when it came back, why), MTBF (time between failures) and MTTR
+(time to recover). The history belongs to the person who set it up: it is never stored in this repository,
+and the page's data can only be read by its owner, even if the page is shared. An hour when the checking
+network couldn't reach the site counts as "not checked", never as down.
+
 ## Audit any website
 
 `site_audit/` audits a whole site from its `base_url`. It finds the pages by following the site's own links,

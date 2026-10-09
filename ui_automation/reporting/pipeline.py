@@ -180,6 +180,9 @@ def finalize_run(
     """Runs inside pytest: record results to summary.json. Notifications happen later (notify_run)."""
     run_dir.mkdir(parents=True, exist_ok=True)
     summary = RunSummary(exit_status=exitstatus, run_dir=run_dir, duration=duration)
+    from ui_automation.reporting.compat import environment
+
+    summary.environment = environment()
     if settings is not None:
         summary.video_mode = settings.video_mode
         summary.tracing_mode = settings.tracing_mode
