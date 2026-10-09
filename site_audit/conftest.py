@@ -403,7 +403,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 # the first browser only; everything measured on the page itself runs in every browser.
 # The phones use their own browsers, so the mobile check also runs once per run.
 _ONCE_PER_SITE = ("test_no_broken_links", "test_served_securely", "test_meets_website_requirements",
-                  "test_follows_gdpr_and_cookie_rules",
+                  "test_follows_gdpr_and_cookie_rules", "test_language_and_translations_are_right",
                   "test_works_on_mobile_devices", "test_api_calls_work_and_are_fast",
                   "test_api_refuses_logged_out_requests", "test_api_keeps_roles_apart")
 
@@ -421,7 +421,8 @@ def _not_applicable(name: str, role: str, settings: Settings, browser: str = "",
         return "API keeps roles apart: needs at least two roles in auth.roles"
     if name == "test_works_on_mobile_devices" and not settings.audit.mobile_devices:
         return "Works on mobile devices: audit.mobile_devices is empty"
-    if name in ("test_served_securely", "test_meets_website_requirements", "test_follows_gdpr_and_cookie_rules") \
+    if name in ("test_served_securely", "test_meets_website_requirements", "test_follows_gdpr_and_cookie_rules",
+                "test_language_and_translations_are_right") \
             and not first_role(settings, role):
         return ""  # silently: the site-wide checks run once, for the first role
     if name == "test_served_securely":

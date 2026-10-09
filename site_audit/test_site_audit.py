@@ -64,6 +64,12 @@ ABOUT = {
                                        "are accepted: a privacy notice, no tracking before consent and a way to "
                                        "refuse it, an accessibility statement, company details and contact details. "
                                        "Each result is in the Website requirements section.",
+    "test_language_and_translations_are_right": "Each page says which language it is in (so screen readers "
+                                                "pronounce it right) and is in that language; no translation keys, "
+                                                "{{placeholders}} or garbled characters showing. For a site in "
+                                                "several languages, every language version is linked correctly "
+                                                "(hreflang), opens, is really translated, links back, fits a "
+                                                "phone, and can be reached from a language switcher.",
     "test_follows_gdpr_and_cookie_rules": "GDPR and cookie rules, checked the way the European Data Protection "
                                           "Board's website auditing tool does it: the site is opened three times in a fresh "
                                           "browser (no choice made, after \"Reject\", after \"Accept\") and every "
@@ -433,3 +439,17 @@ def test_follows_gdpr_and_cookie_rules(audit: SiteMap, browser, settings, reques
     failed = [f"{r.title}: {r.detail} ({r.law})" for r in found.results if not r.passed]
     if not settings.compliance.report_only:
         report(failed, "GDPR or cookie rule(s) not followed")
+
+
+def test_language_and_translations_are_right(audit: SiteMap, site: BasePage, request: pytest.FixtureRequest) -> None:
+    """Localization (ui_automation/localization.py) on up to 5 pages, then every language version of the home page."""
+    from ui_automation import localization
+
+    site.step("Check languages and translations")
+    found = localization.audit(site.page, site.page.request, [r.url for r in loaded(audit)][:5])
+    for table in found.tables:
+        evidence(request, table["title"], table["columns"], table["rows"], table["note"])
+    for f in found.findings:
+        print(f"{'passed' if f.passed else 'FAILED'}: {f.title}: {f.detail}")
+    report([f"{f.title}: {f.detail} ({f.law})" for f in found.findings if not f.passed],
+           "language or translation problem(s)")

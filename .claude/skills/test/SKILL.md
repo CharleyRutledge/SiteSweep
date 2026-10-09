@@ -36,7 +36,8 @@ Use the AskUserQuestion tool. Ask together:
    Don't offer `config/settings.yaml` or `config/settings.example.yaml`: they are templates.
 2. **How thorough.** "Quick: today's browser and phone" (the default, about 4 minutes for a small site) or
    "Full: every browser and phone" (`--all-browsers`, about three times longer, good before a release).
-3. **What kind of testing** (multiSelect: they can pick several). Say that picking all four is the full audit:
+3. **What kind of testing** (multiSelect: they can pick several). Say that picking all four (and every check in
+   question 4) is the full audit:
    - "Pages, links and speed": every page loads with a title and heading, no JavaScript or network errors, no
      broken links or images, pages load quickly.
    - "Accessibility": WCAG 2.1 AA (EN 301 549), with the fix for each issue.
@@ -44,7 +45,9 @@ Use the AskUserQuestion tool. Ask together:
    - "Security, logins and API": safe checks only (nothing attack-like): HTTPS and its certificate, security
      headers, cookie protections, private files like `.git` or `.env` left public, CORS; each role is refused
      pages it shouldn't see, and the app's API answers correctly and keeps roles' data apart.
-4. **Legal checks** (multiSelect):
+4. **Language and legal checks** (multiSelect; AskUserQuestion allows four options):
+   - "Languages and translations": each page's language is set and right, no translation keys or garbled
+     text showing, and every language version is linked, translated, links back and fits a phone.
    - "Irish/EU website requirements": privacy notice, cookie consent before tracking, accessibility statement,
      company and contact details, on the home page.
    - "GDPR and cookies": the site opened three times (no choice, after Reject, after Accept) recording every
@@ -83,8 +86,7 @@ From the repository folder:
 - A settings file: `python -m ui_automation --config <FILE> [--all-browsers] -- site_audit [-k "<CHECKS>"]`
 
 `<CHECKS>` comes from their choice of testing: join with ` or ` the words for each choice, always starting with
-`crawl` (it finds the pages every other check uses). Leave out `-k` when they chose every kind of testing and the
-legal checks.
+`crawl` (it finds the pages every other check uses). Leave out `-k` when they chose every check in questions 3 and 4.
 
 | Choice | Words |
 |--------|-------|
@@ -92,6 +94,7 @@ legal checks.
 | Accessibility | `accessible` |
 | Phones and screen sizes | `screen_size or mobile` |
 | Security, logins and API | `served_securely or refused or api` |
+| Languages and translations | `language` |
 | Irish/EU website requirements | `website_requirements` |
 | GDPR and cookies | `gdpr` |
 
