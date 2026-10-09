@@ -28,9 +28,8 @@ runs the site audit and explains the report. In the same session you can also ty
 
 **First time: make your own copy (fork).** Claude can only open repositories connected to your own GitHub
 account, so other people's repositories, this one included, aren't in your list. On GitHub, tap **Fork** at the
-top of this page (it's free and the licence allows it), then use your fork: on a computer, the button's link
-works once you change `CharleyRutledge/SiteSweep` in it to `<your name>/SiteSweep`; on a phone the app doesn't
-fill the repository in, so tap **Add repository** and pick your fork. Your own settings never go into your fork
+top of this page (it's free and the licence allows it). Then start a session at claude.ai/code (or in the
+Claude app), tap **Add repository**, pick your fork, and type `/test`. Your own settings never go into your fork
 either: `config/private/` and `.env` are never committed. To get new versions later, tap **Sync fork** on GitHub.
 
 **A website (in the cloud, the button).** Before testing, `/test` checks what the session's network can reach
