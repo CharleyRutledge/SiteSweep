@@ -85,6 +85,26 @@ statement link, company details (Companies Act 2014 s.151, S.I. 68/2003), contac
 Trackers are blocked during the check, so tests never send analytics. These checks find what is missing or
 misbehaving; the wording of policies still needs review (and legal advice).
 
+**GDPR and cookies** (`compliance.gdpr`, on with `compliance:`), done the way the EDPB's website auditing
+tool does it: the site is opened three times in a fresh browser (no choice made, after "Reject", after
+"Accept"), on the home page and the pages most likely to ask for personal data (`compliance.gdpr_pages`,
+3 by default), and every cookie (who sets it, how long it lasts), stored item and other site contacted is
+recorded each time. Then it checks:
+
+- nothing that tracks people before a choice, and nothing sent to companies outside the EU before it
+  (ePrivacy Regulations 2011 Reg. 5(3); GDPR Chapter V)
+- "Reject" on the first screen, as easy to see as "Accept" (DPC guidance; EDPB cookie banner taskforce)
+- no boxes ticked in advance (GDPR Art. 4(11) and 7; CJEU Planet49)
+- "Reject" really stops tracking, and a way to change the choice stays on the page (GDPR Art. 7(3))
+- the privacy notice covers what GDPR Art. 13 lists (controller, DPO, purposes, legal basis, recipients,
+  transfers, retention, rights, withdrawing consent, complaining to the Data Protection Commission)
+- forms that ask for personal data are sent over HTTPS, link the privacy notice and have no marketing box
+  ticked in advance
+
+The report shows each result with its law, and tables of the cookies, other sites and notice items found.
+Only the banner's own buttons are pressed, forms are never submitted, and tracker requests are blocked.
+These checks find clear problems; they can't prove a site complies with GDPR.
+
 ## Audit any website
 
 `site_audit/` audits a whole site from its `base_url`. It finds the pages by following the site's own links,
@@ -114,6 +134,7 @@ home page first, up to `audit.max_pages`. Every page found is then checked for:
   captions, automatic refresh, endless animation with no pause, and skipped heading levels. The report
   lists what is checked automatically and what still needs a person
 - Irish/EU website requirements on the home page
+- GDPR and cookies (see above)
 
 Pages built in the browser (React, Vue, ...) are measured only once they show real content: the audit waits
 until the page has visible text with no "Loading..." or spinner, and has stopped changing (up to

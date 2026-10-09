@@ -403,6 +403,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 # the first browser only; everything measured on the page itself runs in every browser.
 # The phones use their own browsers, so the mobile check also runs once per run.
 _ONCE_PER_SITE = ("test_no_broken_links", "test_served_securely", "test_meets_website_requirements",
+                  "test_follows_gdpr_and_cookie_rules",
                   "test_works_on_mobile_devices", "test_api_calls_work_and_are_fast",
                   "test_api_refuses_logged_out_requests", "test_api_keeps_roles_apart")
 
@@ -420,7 +421,8 @@ def _not_applicable(name: str, role: str, settings: Settings, browser: str = "",
         return "API keeps roles apart: needs at least two roles in auth.roles"
     if name == "test_works_on_mobile_devices" and not settings.audit.mobile_devices:
         return "Works on mobile devices: audit.mobile_devices is empty"
-    if name in ("test_served_securely", "test_meets_website_requirements") and not first_role(settings, role):
+    if name in ("test_served_securely", "test_meets_website_requirements", "test_follows_gdpr_and_cookie_rules") \
+            and not first_role(settings, role):
         return ""  # silently: the site-wide checks run once, for the first role
     if name == "test_served_securely":
         mode = settings.audit.security_checks
@@ -431,6 +433,9 @@ def _not_applicable(name: str, role: str, settings: Settings, browser: str = "",
                     "(audit.security_checks: on checks it here too)")
     if name == "test_meets_website_requirements" and not settings.compliance.enabled:
         return "Meets website requirements: compliance.enabled is false"
+    if name == "test_follows_gdpr_and_cookie_rules" and not (settings.compliance.enabled and settings.compliance.gdpr):
+        return ("Follows GDPR and cookie rules: compliance.gdpr is false" if settings.compliance.enabled
+                else "Follows GDPR and cookie rules: compliance.enabled is false")
     if name == "test_pages_are_accessible" and not settings.accessibility.enabled:
         return "Pages are accessible: accessibility.enabled is false"
     if name == "test_role_is_refused_restricted_pages":

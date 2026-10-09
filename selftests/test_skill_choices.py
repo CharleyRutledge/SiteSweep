@@ -18,7 +18,8 @@ def _choices() -> dict[str, list[str]]:
 def test_every_audit_check_belongs_to_exactly_one_choice() -> None:
     choices = _choices()
     assert set(choices) == {"Pages, links and speed", "Accessibility", "Phones and screen sizes",
-                            "Security, logins and API", "Irish/EU website requirements"}, choices
+                            "Security, logins and API", "Irish/EU website requirements",
+                            "GDPR and cookies"}, choices
     source = (REPO / "site_audit" / "test_site_audit.py").read_text(encoding="utf-8")
     checks = [c for c in re.findall(r"^def (test_\w+)\(", source, flags=re.M) if c != "test_crawl_found_the_site"]
     for check in checks:

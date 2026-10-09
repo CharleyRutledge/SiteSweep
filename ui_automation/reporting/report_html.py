@@ -500,7 +500,9 @@ def _compliance_section(summary: RunSummary) -> str:
     parts = ["<h2>Website requirements (Ireland / EU)</h2>",
              '<p class="about">What Irish and EU law expects every website to have, checked on the home page '
              "before any cookies are accepted: a privacy notice (GDPR), no tracking before consent and a way to "
-             "refuse it (ePrivacy rules), an accessibility statement, and company and contact details.</p>",
+             "refuse it (ePrivacy rules), an accessibility statement, and company and contact details. The GDPR and "
+             "cookie checks open the site three times (no choice made, after Reject, after Accept); the cookies "
+             "and other sites they found are listed under that check.</p>",
              f'<p class="file">{failed} problem(s) found on {len(pages)} page(s). These checks find what is missing '
              "or misbehaving; the wording of your policies still needs a person to review.</p>"]
     for owner, entry in owners:
