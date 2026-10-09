@@ -15,7 +15,9 @@ from playwright.sync_api import Error as PlaywrightError
 
 from pages.base_page import BasePage
 from site_audit.conftest import SKIP_LINKS, SiteMap, refused_by_this_network, same_site, short, show
+from ui_automation import gdpr
 from ui_automation.compliance import Monitor, as_dicts, check_page
+from ui_automation.config import accepts_self_signed
 
 # Sites that refuse automated link checks (they answer bots with these) are "unverified", not broken.
 UNVERIFIABLE = {401, 403, 405, 406, 429, 999}
@@ -58,6 +60,12 @@ ABOUT = {
                                        "are accepted: a privacy notice, no tracking before consent and a way to "
                                        "refuse it, an accessibility statement, company details and contact details. "
                                        "Each result is in the Website requirements section.",
+    "test_follows_gdpr_and_cookie_rules": "GDPR and cookie rules, checked the way the European Data Protection "
+                                          "Board's website auditing tool does it: the site is opened three times in a fresh "
+                                          "browser (no choice made, after \"Reject\", after \"Accept\") and every "
+                                          "cookie, stored item and other site contacted is recorded. Then the cookie "
+                                          "banner, the privacy notice and forms asking for personal data are checked. "
+                                          "Nothing is submitted, and requests to trackers are blocked.",
 }
 
 
@@ -427,3 +435,17 @@ def test_meets_website_requirements(site: BasePage, site_map: SiteMap, request, 
     failed = [f"{r.title}: {r.detail} ({r.law})" for r in results if not r.passed]
     if not site.settings.compliance.report_only:
         report(failed, "website requirement(s) not met")
+
+
+def test_follows_gdpr_and_cookie_rules(audit: SiteMap, browser, settings, request: pytest.FixtureRequest) -> None:
+    """GDPR and ePrivacy (cookie) checks on the home page and the pages most likely to ask for personal data, as
+    a new visitor who hasn't chosen anything yet."""
+    urls = gdpr.pick_pages([r.url for r in loaded(audit)], settings.compliance.gdpr_pages) or [audit.home]
+    found = gdpr.audit(browser, urls, {"ignore_https_errors": accepts_self_signed(settings)})
+    for table in found.tables:
+        evidence(request, table["title"], table["columns"], table["rows"], table["note"])
+    request.node.compliance = [{"url": f"{short(urls[0], audit.home)} - GDPR and cookies ({len(urls)} page(s))",
+                                "results": as_dicts(found.results)}]
+    failed = [f"{r.title}: {r.detail} ({r.law})" for r in found.results if not r.passed]
+    if not settings.compliance.report_only:
+        report(failed, "GDPR or cookie rule(s) not followed")

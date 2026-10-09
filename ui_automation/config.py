@@ -72,6 +72,8 @@ class ComplianceSettings:
     report_only: bool = False  # true: list problems in the report without failing the run (others' sites)
     pages: tuple[str, ...] = ("/",)
     checks: tuple[str, ...] = DEFAULT_COMPLIANCE_CHECKS
+    gdpr: bool = True  # the GDPR and cookie checks (three visits: no choice, reject, accept)
+    gdpr_pages: int = 3  # how many of the crawled pages each GDPR visit opens (the home page first)
 
 
 @dataclass(frozen=True)
@@ -471,6 +473,8 @@ def _load_compliance(raw: Mapping[str, Any] | None) -> ComplianceSettings:
         report_only=_as_bool(raw.get("report_only"), False, "compliance.report_only"),
         pages=_pages(raw.get("pages", ["/"]), "compliance.pages"),
         checks=checks,
+        gdpr=_as_bool(raw.get("gdpr"), True, "compliance.gdpr"),
+        gdpr_pages=_as_int(raw.get("gdpr_pages"), 3, "compliance.gdpr_pages", minimum=1),
     )
 
 

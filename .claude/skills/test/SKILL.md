@@ -43,8 +43,13 @@ Use the AskUserQuestion tool. Ask together:
    - "Phones and screen sizes": no sideways scrolling at any screen size, and real phone profiles.
    - "Security, logins and API": HTTPS and security headers, each role is refused pages it shouldn't see, and
      the app's API answers correctly and keeps roles' data apart.
-4. **Legal checks** (multiSelect): "Irish/EU website requirements" (privacy notice, cookie consent before
-   tracking, accessibility statement, company and contact details), or "None".
+4. **Legal checks** (multiSelect):
+   - "Irish/EU website requirements": privacy notice, cookie consent before tracking, accessibility statement,
+     company and contact details, on the home page.
+   - "GDPR and cookies": the site opened three times (no choice, after Reject, after Accept) recording every
+     cookie and other site contacted; the cookie banner (Reject as easy as Accept, nothing ticked in advance,
+     a way to change your mind); what the privacy notice covers (GDPR Art. 13); forms that ask for personal data.
+   - "None".
 
 If they don't pick any kind of testing, run everything.
 
@@ -78,7 +83,7 @@ From the repository folder:
 
 `<CHECKS>` comes from their choice of testing: join with ` or ` the words for each choice, always starting with
 `crawl` (it finds the pages every other check uses). Leave out `-k` when they chose every kind of testing and the
-Irish/EU requirements.
+legal checks.
 
 | Choice | Words |
 |--------|-------|
@@ -87,6 +92,7 @@ Irish/EU requirements.
 | Phones and screen sizes | `screen_size or mobile` |
 | Security, logins and API | `served_securely or refused or api` |
 | Irish/EU website requirements | `website_requirements` |
+| GDPR and cookies | `gdpr` |
 
 For example, accessibility and phones only: `-k "crawl or accessible or screen_size or mobile"`.
 

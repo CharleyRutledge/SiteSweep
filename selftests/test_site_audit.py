@@ -12,6 +12,7 @@ from typing import Iterator
 import pytest
 
 from harness import CliRun, base_config, invoke_cli
+from test_gdpr import NOTICE
 
 
 def _page(title: str, body: str) -> str:
@@ -37,7 +38,7 @@ _FOOTER = ('<footer><a href="/privacy">Privacy notice</a> <a href="/accessibilit
 _TAP = "<style>a{display:inline-block;min-width:24px;min-height:24px;margin:2px}</style>"
 CLEAN = {
     "/": _page("Home", _TAP + '<h1>Home</h1><a href="/about">About</a>' + _FOOTER),
-    "/privacy": _page("Privacy", "<h1>Privacy notice</h1>"),
+    "/privacy": _page("Privacy", NOTICE),  # everything GDPR Art. 13 asks a notice to say
     "/accessibility": _page("Accessibility", "<h1>Accessibility statement</h1>"),
     "/contact": _page("Contact", "<h1>Contact us</h1>"),
     # Built in the browser after a slow request, like a React/Vue page: the audit must wait for it.

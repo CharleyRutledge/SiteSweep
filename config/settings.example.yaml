@@ -45,6 +45,8 @@ compliance:
   pages:
     - /
   checks: [privacy_notice, cookie_consent, accessibility_statement, company_details, contact_details]
+  gdpr: true  # GDPR and cookie checks: the site visited with no choice, after Reject and after Accept
+  gdpr_pages: 3  # pages opened in each of those visits (the home page first)
 
 notifications:
   email:
