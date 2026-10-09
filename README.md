@@ -15,9 +15,14 @@ and pytest, with optional summaries by Claude.
 
 ## Open in Claude
 
-[![Open in Claude](https://img.shields.io/badge/Open%20in%20Claude-test%20a%20site-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://claude.ai/code?repositories=CharleyRutledge/SiteSweep&prompt=%2Ftest)
+[![1. Fork on GitHub](https://img.shields.io/badge/1.%20Fork-on%20GitHub-24292F?style=for-the-badge&logo=github&logoColor=white)](https://github.com/CharleyRutledge/SiteSweep/fork)
+[![2. Open in Claude (fork first)](https://img.shields.io/badge/2.%20Open%20in%20Claude-fork%20first-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://claude.ai/code?repositories=CharleyRutledge/SiteSweep&prompt=%2Ftest)
 
-Click the button: Claude opens a session with the latest code and asks what to test and how thorough. It then
+**Using SiteSweep for the first time?** Tap **1. Fork** to make your own copy, then start a session with your
+fork (see "First time" below). **2. Open in Claude** opens this repository itself, which only its owner can
+do; on a computer it fills in the repository and `/test` for you.
+
+Once a session is open with SiteSweep, Claude asks what to test and how thorough. It then
 runs the site audit and explains the report. In the same session you can also type:
 
 | Command | What it does |
