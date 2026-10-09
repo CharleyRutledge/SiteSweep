@@ -87,7 +87,8 @@ ul.tests li:last-child { border-bottom:none; }
 :focus-visible { outline:3px solid #4c7cf0; outline-offset:2px; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; transition:none !important; } }
 .dur { color:var(--muted); font-size:13px; white-space:nowrap; }
-.foot { color:var(--muted); font-size:13px; margin-top:20px; }
+.foot { color:var(--muted); font-size:13px; margin-top:20px; overflow-wrap:anywhere; }
+li.issue { overflow-wrap:anywhere; }
 a { color:inherit; }
 ol.fixes { margin:8px 0 0; padding-left:18px; } ol.fixes > li { margin:10px 0; }
 .where code { font-size:12px; }
@@ -101,6 +102,24 @@ button.copy { font:inherit; font-size:13px; font-weight:600; min-width:64px; min
               border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer; }
 .note { color:var(--muted); font-size:13px; margin:6px 0 0; white-space:pre-line; }
 .js .nojs-hint { display:none; }
+.about { margin:8px 0 0; }
+ul.problems { margin:6px 0 0; padding-left:18px; } ul.problems li { margin:4px 0; overflow-wrap:anywhere; }
+.table-wrap { overflow-x:auto; margin-top:6px; border:1px solid var(--line); border-radius:8px; }
+table.evidence { border-collapse:collapse; width:100%; font-size:13px; }
+table.evidence th, table.evidence td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line);
+                                       vertical-align:top; overflow-wrap:anywhere; }
+@media (max-width:560px) {
+  /* Phones: each row becomes a small block, every value labelled, so nothing is off-screen. */
+  table.evidence thead { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+  table.evidence, table.evidence tbody { display:block; }
+  table.evidence tr { display:block; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.evidence tr:last-child { border-bottom:none; }
+  table.evidence td { display:block; padding:2px 0; border:none; }
+  table.evidence td::before { content:attr(data-label) ": "; font-weight:600; color:var(--muted); }
+}
+table.evidence th { background:var(--code-bg); font-weight:600; }
+table.evidence tr:last-child td { border-bottom:none; }
+.who { margin:6px 0 0; } .pages { margin:6px 0 0; font-size:13px; overflow-wrap:anywhere; }
 """
 
 # The only script in the report: shows the Copy buttons and copies a fix. It is pinned by hash in the
@@ -236,6 +255,43 @@ def _variant(test: TestResult) -> str:
     return "".join(f' <span class="tag">{escape(tag)}</span>' for tag in test.variant_tags)
 
 
+_EVIDENCE_ROWS = 100  # per table; the rest is summarised
+
+
+def _evidence(test: TestResult) -> str:
+    """What the check means and what it found (tables), shown whether it passed or failed."""
+    parts = [f'<p class="about"><b>What this checks:</b> {escape(test.about)}</p>'] if test.about else []
+    for table in test.evidence:
+        rows = table.get("rows") or []
+        cols = table.get("columns") or []
+        parts.append(f'<div class="sub">{escape(table.get("title", ""))}</div>')
+        if rows:
+            head = "".join(f'<th scope="col">{escape(c)}</th>' for c in cols)
+            body = "".join("<tr>" + "".join(f'<td data-label="{escape(col)}">{escape(c)}</td>'
+                                            for col, c in zip(cols, row)) + "</tr>"
+                           for row in rows[:_EVIDENCE_ROWS])
+            caption = escape(table.get("title", ""))
+            parts.append(f'<div class="table-wrap" tabindex="0" role="region" aria-label="{caption}">'
+                         f'<table class="evidence"><caption class="sr-only">{caption}</caption>'
+                         f"<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>")
+            if len(rows) > _EVIDENCE_ROWS:
+                parts.append(f'<p class="file">…and {len(rows) - _EVIDENCE_ROWS} more row(s) in summary.json.</p>')
+        if table.get("note"):
+            parts.append(f'<p class="file">{escape(table["note"])}</p>')
+    return "".join(parts)
+
+
+def _problems(test: TestResult) -> str:
+    """The list a failed check reported ('- ...' lines), as a readable list instead of a traceback."""
+    lines, seen = [], set()
+    for line in test.details.splitlines():
+        line = line.removeprefix("E").strip()
+        if line.startswith("- ") and line not in seen:
+            seen.add(line)
+            lines.append(line[2:])
+    return "".join(f"<li>{escape(x)}</li>" for x in lines)
+
+
 def _failure_card(test: TestResult, media: _Embedder) -> str:
     if test.failure_screenshots:
         shot, caption = media.img(test.failure_screenshots[-1], "Screen when the test failed"), "Screen when it failed:"
@@ -245,11 +301,15 @@ def _failure_card(test: TestResult, media: _Embedder) -> str:
         shot, caption = "", ""
     label = "Error during setup/teardown" if test.outcome == "error" else "Failed"
     details = (
-        f'<details><summary>Full error</summary><pre tabindex="0" role="region" aria-label="Full error for '
-        f'{escape(test.title)}">{escape(test.details)}</pre></details>'
+        f'<details><summary>Technical details (for developers)</summary><pre tabindex="0" role="region" '
+        f'aria-label="Technical details for {escape(test.title)}">{escape(test.details)}</pre></details>'
         if test.details
         else ""
     )
+    found = _problems(test)
+    message = escape(test.message or "No error message").removeprefix("AssertionError: ")
+    listed = (f'<div class="msg">{message}</div><ul class="problems">{found}</ul>' if found and not test.evidence
+              else f'<div class="msg">{message}</div>')
     step = (
         f'<div class="step">Stopped at step: <b>{escape(test.last_step)}</b></div>' if test.last_step else ""
     )
@@ -257,8 +317,7 @@ def _failure_card(test: TestResult, media: _Embedder) -> str:
     return (
         f'<div class="card fail"{_filter_attrs(test)}><div class="name">{escape(test.title)}{_variant(test)}</div>'
         f'<div class="file">{escape(test.file)} · {label} after {_fmt_duration(test.duration)}</div>'
-        f"{step}"
-        f'<div class="msg">{escape(test.message or "No error message")}</div>'
+        f"{listed}{_evidence(test)}{'' if test.evidence else step}"
         f"{shot_note}{shot}{details}</div>"
     )
 
@@ -324,6 +383,66 @@ def _fix_block(fix: dict) -> str:
     return "".join(parts) + "</li>"
 
 
+_SEVERITY = {"critical": (0, "Blocks some people completely"), "serious": (1, "Makes the page very hard to use"),
+             "moderate": (2, "Makes the page harder to use"), "minor": (3, "A small obstacle")}
+
+
+def _issue_cards(owner: TestResult, scans: list[dict]) -> list[str]:
+    """One card per problem (not per page): what is wrong, who it affects, where, and how to fix it."""
+    issues: dict[str, dict] = {}
+    for scan_ in scans:
+        for v in scan_["violations"]:
+            entry = issues.setdefault(v.get("rule") or v.get("help", ""), {"v": v, "pages": [], "elements": 0,
+                                                                            "fixes": [], "seen": set()})
+            entry["pages"].append(scan_.get("url", ""))
+            entry["elements"] += v.get("count", 0)
+            for f in v.get("fixes") or []:  # the same element on many pages (a shared footer) is one fix
+                if len(entry["fixes"]) < 3 and (f.get("target"), f.get("fix")) not in entry["seen"]:
+                    entry["seen"].add((f.get("target"), f.get("fix")))
+                    entry["fixes"].append(f)
+    if not issues:
+        return [f'<div class="card"{_filter_attrs(owner)}><div class="name">No problems found{_variant(owner)}</div>'
+                f'<p class="ok-text">{len(scans)} page(s) checked: '
+                f'{escape(", ".join(_short_url(s.get("url", "")) for s in scans))}</p></div>']
+    cards = []
+    order = sorted(issues.values(), key=lambda e: (_SEVERITY.get(e["v"].get("impact", ""), (4, ""))[0], -len(e["pages"])))
+    for e in order:
+        v, pages = e["v"], e["pages"]
+        impact = v.get("impact", "")
+        rank, plain = _SEVERITY.get(impact, (4, impact))
+        crit = ", ".join(v.get("criteria") or []) or "best practice"
+        shown = ", ".join(_short_url(u) for u in pages[:8]) + (f" and {len(pages) - 8} more" if len(pages) > 8 else "")
+        shared = (" It is on most pages, so it is probably one fix in a shared header, footer or style."
+                  if len(scans) > 2 and len(pages) >= 0.6 * len(scans) else "")
+        who = "; ".join(v.get("affects") or []) or "people using assistive technology"
+        fixes = e["fixes"]
+        if fixes:
+            how = '<div class="sub">How to fix it</div><ol class="fixes">' + "".join(_fix_block(f) for f in fixes) + "</ol>"
+            if e["elements"] > len(fixes):
+                how += f'<p class="file">…and {e["elements"] - len(fixes)} more element(s) with the same problem.</p>'
+        else:
+            how = "".join(f"<li><code>{escape(x)}</code></li>" for x in (v.get("targets") or [])[:3])
+            how = f'<div class="sub">Where on the page</div><ul class="targets">{how}</ul>' if how else ""
+        link = (f' · <a href="{escape(v["help_url"])}">Why this matters<span class="sr-only">: '
+                f'{escape(v.get("help", ""))}</span></a>' if v.get("help_url", "").startswith("https://") else "")
+        cards.append(
+            f'<div class="card fail"{_filter_attrs(owner)}>'
+            f'<div class="name"><span class="tag impact-{escape(impact)}">{escape(plain)}</span> '
+            f'{escape(v.get("help", ""))}{_variant(owner)}</div>'
+            + (f'<p class="about"><b>What is wrong:</b> {escape(v["description"])}</p>' if v.get("description") else "")
+            + f'<p class="who"><b>Who it affects:</b> {escape(who)}.</p>'
+            f'<p class="pages"><b>Where:</b> {len(pages)} page(s): {escape(shown)}.{escape(shared)}</p>'
+            f"{how}"
+            f'<div class="file">WCAG {escape(crit)} · {e["elements"]} element(s) in all{link}</div></div>'
+        )
+    return cards
+
+
+def _short_url(url: str) -> str:
+    path = url.split("://", 1)[-1]
+    return "/" + path.split("/", 1)[1] if "/" in path else "/"
+
+
 def _accessibility_section(summary: RunSummary) -> str:
     owners = [(t, scan) for t in summary.tests for scan in t.accessibility]
     scans = [scan for _, scan in owners]
@@ -334,44 +453,23 @@ def _accessibility_section(summary: RunSummary) -> str:
     standard = _STANDARD_LABEL.get(scans[0].get("standard", ""), scans[0].get("standard", ""))
     total = sum(len(s["violations"]) for s in scans)
     parts = [f"<h2>Accessibility: {escape(standard)}</h2>"]
+    kinds = len({v.get("rule") or v.get("help") for s in scans for v in s["violations"]})
+    hit = sum(1 for s in scans if s["violations"])
     summary_line = (
-        f"{total} issue type(s) found on {sum(1 for s in scans if s['violations'])} of {len(scans)} page(s)."
-        if total else f"No issues found by the automated checks on {len(scans)} page(s)."
+        f"{kinds} different problem(s) found, on {hit} of {len(scans)} page(s). Each one below says what is wrong, "
+        "who it affects, where it is and how to fix it, the most serious first."
+        if total else f"No problems found by the automated checks on {len(scans)} page(s)."
     )
     parts.append(f'<p class="file">{escape(summary_line)} Checked with axe-core {AXE_VERSION}.</p>')
     if any(f.get("fix") for s in scans for v in s["violations"] for f in v.get("fixes") or []):
         parts.append('<p class="file">Each problem comes with the corrected code for that element. '
                      '<span class="nojs-hint">Press and hold a code box to select it, then copy.</span></p>'
                      '<div id="copy-status" class="sr-only" role="status" aria-live="polite"></div>')
+    by_owner: dict[str, tuple[TestResult, list[dict]]] = {}
     for owner, scan_ in owners:
-        issues = scan_["violations"]
-        rows = []
-        for v in issues:
-            crit = ", ".join(v.get("criteria") or []) or "best practice"
-            fixes = v.get("fixes") or []
-            if fixes:
-                shown = fixes[:3]
-                where = "".join(_fix_block(f) for f in shown)
-                more = v.get("count", 0) - len(shown)
-                where_html = f'<ol class="fixes">{where}</ol>' + (
-                    f'<p class="file">…and {more} more element(s) with the same problem.</p>' if more > 0 else "")
-            else:  # summaries written before fixes were suggested
-                where = "".join(f"<li><code>{escape(t)}</code></li>" for t in v.get("targets", [])[:3])
-                more = v.get("count", 0) - min(3, len(v.get("targets", [])))
-                where_html = f"<ul class=\"targets\">{where}{f'<li>…and {more} more</li>' if more > 0 else ''}</ul>"
-            rows.append(
-                f'<li class="issue"><span class="tag impact-{escape(v.get("impact", ""))}">{escape(v.get("impact", ""))}</span> '
-                f'<b>{escape(v.get("help", ""))}</b><div class="file">WCAG {escape(crit)} · '
-                f'{v.get("count", 0)} element(s)'
-                + (f' · <a href="{escape(v["help_url"])}">Why this matters<span class="sr-only">: {escape(v.get("help", ""))}</span></a>'
-                   if v.get("help_url", "").startswith("https://") else "")
-                + f"</div>{where_html}</li>"
-            )
-        body = f'<ul class="issues">{"".join(rows)}</ul>' if rows else '<p class="ok-text">No issues found by the automated checks.</p>'
-        parts.append(
-            f'<div class="card{" fail" if issues else ""}"{_filter_attrs(owner)}>'
-            f'<div class="name">{escape(scan_.get("url", ""))}{_variant(owner)}</div>{body}</div>'
-        )
+        by_owner.setdefault(owner.nodeid, (owner, []))[1].append(scan_)
+    for owner, owner_scans in by_owner.values():
+        parts.extend(_issue_cards(owner, owner_scans))
     manual = "".join(f"<li><b>{escape(c)}</b>: {escape(text)}</li>" for c, text in MANUAL_CHECKS)
     if any(t.file.startswith("site_audit") for t, _ in owners):  # the site audit runs the extra checks
         automated = "".join(f"<li><b>{escape(c)}</b>: {escape(text)}</li>" for c, text in AUTOMATED_CHECKS)
@@ -388,6 +486,11 @@ def _accessibility_section(summary: RunSummary) -> str:
     return "".join(parts)
 
 
+def _clip(text: str, limit: int = 400) -> str:
+    """Long details (e.g. an embedded file's address) shortened: the full text is in summary.json."""
+    return text if len(text) <= limit else text[:limit] + "… (shortened)"
+
+
 def _compliance_section(summary: RunSummary) -> str:
     owners = [(t, entry) for t in summary.tests for entry in t.compliance]
     pages = [entry for _, entry in owners]
@@ -395,13 +498,16 @@ def _compliance_section(summary: RunSummary) -> str:
         return ""
     failed = sum(1 for p in pages for r in p["results"] if not r["passed"])
     parts = ["<h2>Website requirements (Ireland / EU)</h2>",
+             '<p class="about">What Irish and EU law expects every website to have, checked on the home page '
+             "before any cookies are accepted: a privacy notice (GDPR), no tracking before consent and a way to "
+             "refuse it (ePrivacy rules), an accessibility statement, and company and contact details.</p>",
              f'<p class="file">{failed} problem(s) found on {len(pages)} page(s). These checks find what is missing '
              "or misbehaving; the wording of your policies still needs a person to review.</p>"]
     for owner, entry in owners:
         rows = "".join(
             f'<li class="issue"><span class="dot {"passed" if r["passed"] else "failed"}" aria-hidden="true">'
             f'{"✓" if r["passed"] else "✕"}</span><span class="sr-only">{"Passed" if r["passed"] else "Failed"}: </span>'
-            f' <b>{escape(r["title"])}</b>: {escape(r["detail"])}<div class="file">{escape(r["law"])}</div></li>'
+            f' <b>{escape(r["title"])}</b>: {escape(_clip(r["detail"]))}<div class="file">{escape(r["law"])}</div></li>'
             for r in entry["results"]
         )
         bad = any(not r["passed"] for r in entry["results"])
@@ -474,10 +580,12 @@ def render_summary_html(summary: RunSummary, ai_text: str | None = None) -> str:
     order = {"error": 0, "failed": 1, "skipped": 2, "passed": 3}
     for t in sorted(summary.tests, key=lambda t: (order.get(t.outcome, 4), t.nodeid)):
         note = f'<div class="file">{escape(t.message)}</div>' if t.outcome == "skipped" and t.message else ""
+        found = _evidence(t) if t.outcome == "passed" else ""
+        more = f"<details><summary>What was checked</summary>{found}</details>" if found else ""
         rows.append(
             f"<li{_filter_attrs(t)}>{_dot(t.outcome)}"
             f'<div class="grow"><div class="name">{escape(t.title)}{_variant(t)}</div>'
-            f'<div class="file">{escape(t.file)}</div>{note}</div>'
+            f'<div class="file">{escape(t.file)}</div>{note}{more}</div>'
             f'<span class="dur">{_fmt_duration(t.duration)}</span></li>'
         )
     parts.append(f'<h2>All tests ({summary.total})</h2><div class="card"><ul class="tests">{"".join(rows)}</ul></div>')

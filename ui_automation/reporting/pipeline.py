@@ -156,6 +156,10 @@ def collect_test_results(reporter: Any) -> list[TestResult]:
                     result.accessibility = list(value)
                 elif key == "compliance":
                     result.compliance = list(value)
+                elif key == "evidence":
+                    result.evidence = list(value)
+                elif key == "about":
+                    result.about = str(value)
             if outcome and _OUTCOME_RANK[outcome] >= _OUTCOME_RANK.get(result.outcome, 0):
                 if outcome != "passed":
                     result.message = _crash_message(rep)

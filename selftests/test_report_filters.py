@@ -64,8 +64,8 @@ def test_outcome_tile_filters_every_section_and_toggles_off(page: Page) -> None:
 def test_role_chip_combines_with_the_outcome(page: Page) -> None:
     page.get_by_role("button", name="customer", exact=True).click()
     assert len(rows(page)) == 3
-    expect(page.locator(".card:has-text('http://app/customer/'):visible")).to_have_count(1)
-    expect(page.locator(".card:has-text('http://app/public/'):visible")).to_have_count(0)
+    expect(page.locator(".card:has-text('/customer/'):visible")).to_have_count(1)
+    expect(page.locator(".card:has-text('/public/'):visible")).to_have_count(0)
     page.get_by_role("button", name="2 Failed").click()
     assert len(rows(page)) == 1 and rows(page)[0].startswith("No network errors")
     expect(page.locator("#filter-status")).to_contain_text("Showing 1 of 7 tests · failed · customer")

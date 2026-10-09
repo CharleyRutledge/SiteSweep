@@ -22,6 +22,9 @@ class TestResult:
     traces: list[str] = field(default_factory=list)  # Playwright trace .zip (open at trace.playwright.dev)
     accessibility: list[dict] = field(default_factory=list)  # one entry per page scanned by expect_accessible
     compliance: list[dict] = field(default_factory=list)  # one entry per website compliance check
+    about: str = ""  # what the check means, in plain words (shown above its results)
+    # What the check found, as tables: {"title", "columns": [...], "rows": [[...]], "note"}; shown passed or failed
+    evidence: list[dict] = field(default_factory=list)
 
     @property
     def title(self) -> str:

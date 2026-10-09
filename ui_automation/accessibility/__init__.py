@@ -62,6 +62,28 @@ def axe_source() -> str:
     return data.decode("utf-8")
 
 
+# axe's rule categories, and the people each kind of problem gets in the way of.
+_AFFECTS = {
+    "cat.color": "people with low vision or colour blindness",
+    "cat.text-alternatives": "blind people using a screen reader",
+    "cat.keyboard": "people who use a keyboard instead of a mouse",
+    "cat.forms": "screen reader users filling in forms, and people who need clear instructions",
+    "cat.aria": "screen reader and voice control users",
+    "cat.name-role-value": "screen reader and voice control users",
+    "cat.structure": "screen reader users who move around a page by its headings and regions",
+    "cat.semantics": "screen reader users who move around a page by its headings and regions",
+    "cat.language": "screen reader users (the page is read out in the wrong language)",
+    "cat.tables": "screen reader users reading tables",
+    "cat.time-and-media": "deaf and blind people using videos and audio, and people who need more time",
+    "cat.sensory-and-visual-cues": "people with low vision or who use zoom",
+    "cat.parsing": "people using assistive technology",
+}
+
+
+def _affects(tags: list[str]) -> list[str]:
+    return list(dict.fromkeys(_AFFECTS[t] for t in tags if t in _AFFECTS))
+
+
 def _criteria(tags: list[str]) -> list[str]:
     """axe tags like 'wcag143' / 'wcag1410' -> WCAG success criteria '1.4.3' / '1.4.10'."""
     out = []
@@ -82,6 +104,8 @@ class Violation:
     targets: list[str] = field(default_factory=list)
     count: int = 0
     fixes: list[dict] = field(default_factory=list)  # per element: target, html, fix (copy-pasteable), note
+    description: str = ""  # what the rule checks, in axe's plain words
+    affects: list[str] = field(default_factory=list)  # who the problem gets in the way of
 
     @classmethod
     def from_axe(cls, raw: dict[str, Any]) -> Violation:
@@ -92,6 +116,8 @@ class Violation:
             help=raw.get("help", ""),
             help_url=raw.get("helpUrl", ""),
             criteria=_criteria(raw.get("tags") or []),
+            description=raw.get("description", ""),
+            affects=_affects(raw.get("tags") or []),
             targets=[" ".join(map(str, n.get("target", []))) for n in nodes[:5]],
             count=len(nodes),
             fixes=[suggest(raw.get("id", ""), n) for n in nodes[:5]],
