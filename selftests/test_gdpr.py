@@ -216,3 +216,34 @@ def test_pages_that_ask_for_personal_data_are_visited_first() -> None:
     crawl = [f"https://x.ie{p}" for p in ("/", "/about", "/privacy-policy", "/blog", "/contact-us", "/newsletter")]
     assert gdpr.pick_pages(crawl, 3) == ["https://x.ie/", "https://x.ie/contact-us", "https://x.ie/newsletter"]
     assert gdpr.pick_pages(crawl, 9)[3:] == ["https://x.ie/about", "https://x.ie/blog"]
+
+
+SMALL_NOTICE = """<h1>Privacy policy</h1>
+<h2>Who we are</h2><p>Example Ltd is the data controller. Contact: hello@example.ie.</p>
+<h2>What data we collect and why</h2><p>When you register your interest we collect your first name and email
+address, to notify you when the service launches and invite you to the beta.</p>
+<h2>Legal basis for processing</h2><p>Your consent. You can withdraw your consent at any time.</p>
+<h2>Who we share it with</h2><p>Our email service provider, a processor.</p>
+<h2>Transfers</h2><p>Data is not sent outside the EU.</p>
+<h2>How long we keep it</h2><p>Until the beta ends.</p>
+<h2>Your rights</h2><p>Right of access, rectification and erasure.</p>
+<p>You can lodge a complaint with the Data Protection Commission.</p>"""
+
+
+def test_a_small_organisations_notice_without_a_dpo_passes() -> None:
+    """A notice that names its purposes under "What data we collect and why" and has no data protection officer
+    (most small organisations don't need one, GDPR Art. 37) meets Art. 13."""
+    results, found = _audit({**GOOD, "/privacy": _page("Privacy", SMALL_NOTICE + BANNER + FOOTER)}, ["/"])
+    notice = results["privacy_notice_content"]
+    assert notice.passed, notice.detail
+    rows = {row[0]: row for row in _table(found, "What the privacy notice covers")["rows"]}
+    assert rows["Why personal data is used (the purposes)"][1] == "yes"
+    assert rows[gdpr.DPO_ITEM][1] == "not mentioned (only needed if you have a DPO)"
+
+
+@pytest.mark.parametrize("text", ["What data we collect and why", "We use your data to send the newsletter",
+                                  "We collect your email address to notify you when we launch",
+                                  "The purposes of processing are"])
+def test_ways_of_stating_the_purposes_are_recognised(text: str) -> None:
+    item = dict((i, ok) for i, ok, _ in gdpr.notice_items(text))
+    assert item["Why personal data is used (the purposes)"], text
