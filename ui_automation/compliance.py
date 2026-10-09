@@ -115,6 +115,30 @@ def _link_check(page: Any, links: list[dict[str, str]], check: str, pattern: str
     return CheckResult(check, True, f"Linked as \"{link['text'] or link['href']}\" and loads.")
 
 
+def _statement_in_help_pages(page: Any, links: list[dict[str, str]]) -> CheckResult | None:
+    """Many sites put the statement inside an FAQ or support page rather than linking it by name. Read the few
+    pages that usually hold it (same site only, no clicks) before saying it is missing."""
+    host = urlparse(page.url).hostname
+    wanted = re.compile(r"faq|support|help|about|contact|legal|compliance|policies", re.I)
+    pages = list(dict.fromkeys(l["href"] for l in links if urlparse(l["href"]).hostname == host
+                               and (wanted.search(l["text"]) or wanted.search(urlparse(l["href"]).path))))[:5]
+    other = page.context.new_page()
+    try:
+        for url in pages:
+            try:
+                other.goto(url, wait_until="load", timeout=30_000)
+                if re.search(r"accessibility\s+statement", other.inner_text("body"), re.I):
+                    return CheckResult("accessibility_statement", True,
+                                       f"An accessibility statement is on {url}, but no link on this page is named "
+                                       "for it. Add a clear \"Accessibility statement\" link in the footer so it is "
+                                       "easy to find (a person should open it and check its content).")
+            except Exception:  # noqa: BLE001 - a page that won't open is skipped
+                continue
+    finally:
+        other.close()
+    return None
+
+
 def check_page(page: Any, monitor: Monitor, checks: tuple[str, ...] = ALL_CHECKS) -> list[CheckResult]:
     """Run the checks on the page as first loaded (no clicks yet: cookie consent must not be given)."""
     results: list[CheckResult] = []
@@ -148,7 +172,10 @@ def check_page(page: Any, monitor: Monitor, checks: tuple[str, ...] = ALL_CHECKS
     if "privacy_notice" in checks:
         results.append(_link_check(page, links, "privacy_notice", PRIVACY_LINK, "privacy notice"))
     if "accessibility_statement" in checks:
-        results.append(_link_check(page, links, "accessibility_statement", r"accessibility", "accessibility statement"))
+        result = _link_check(page, links, "accessibility_statement", r"accessibility", "accessibility statement")
+        if not result.passed and result.detail.startswith("No link"):
+            result = _statement_in_help_pages(page, links) or result
+        results.append(result)
     if "terms" in checks:
         results.append(_link_check(page, links, "terms", r"terms|conditions", "terms and conditions page"))
 
