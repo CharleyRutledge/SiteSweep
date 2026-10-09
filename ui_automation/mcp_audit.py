@@ -185,7 +185,8 @@ class SseTransport:
             ready.set()
 
         threading.Thread(target=read, daemon=True).start()
-        if not ready.wait(timeout) or not self.endpoint:
+        # A newer server may answer this GET with its own notification stream: give up on "endpoint" after 10 s.
+        if not ready.wait(min(timeout, 10)) or not self.endpoint:
             self.close()
             raise McpError("the event stream never said where to send messages")
 
@@ -506,15 +507,22 @@ def _security(c: Check, server: dict, init: Reply, token: str) -> None:
     try:
         foreign = Client(HttpTransport(url, token, TEST_ORIGIN)).initialize()
         accepted = bool((foreign.body or {}).get("result"))
-        if accepted:
+        # Where it matters: a server on this computer or network (DNS rebinding), or one that needs a login (another
+        # website could use the visitor's). A public server with no login is meant to be callable from any page.
+        guarded = local or bool(token)
+        if accepted and guarded:
             c.problems.append(f"accepts requests from any website (Origin: {TEST_ORIGIN}); the spec requires "
                               "servers to check Origin, against DNS rebinding")
-        rows.append(["Request from another website (Origin)", "accepted" if accepted else f"refused (HTTP {foreign.status})"])
+        rows.append(["Request from another website (Origin)", (f"refused (HTTP {foreign.status})" if not accepted
+                     else "accepted" if guarded else "accepted (advice: fine for a public server with no login; "
+                                                     "check Origin if it ever gets one)")])
         allow = foreign.headers.get("access-control-allow-origin", "")
         creds = foreign.headers.get("access-control-allow-credentials", "").lower() == "true"
-        if allow in (TEST_ORIGIN, "*") and creds:
+        loose = allow in (TEST_ORIGIN, "*") and creds
+        if loose and guarded:
             c.problems.append("CORS lets any website call it with the user's login")
-        rows.append(["CORS", f"{allow or 'not set'}{' with credentials' if creds else ''}"])
+        rows.append(["CORS", f"{allow or 'not set'}{' with credentials' if creds else ''}"
+                     + (" (advice: drop credentials, as there is no login to protect)" if loose and not guarded else "")])
     except McpError as exc:
         rows.append(["Request from another website (Origin)", f"no answer ({exc})"])
     # Login: without the token, nothing may be listed.
@@ -568,11 +576,23 @@ def _oauth(c: Check, rows: list, url: str, reply: Reply) -> None:
     rows.append(["Where to log in (OAuth metadata)", ", ".join(data.get("authorization_servers", [])) or "not found"])
 
 
+def _descriptions(schema: Any) -> list[str]:
+    """Every "description" (and "title") anywhere in a JSON schema."""
+    if isinstance(schema, dict):
+        own = [str(schema[k]) for k in ("description", "title") if isinstance(schema.get(k), str)]
+        return own + [d for v in schema.values() for d in _descriptions(v)]
+    if isinstance(schema, list):
+        return [d for v in schema for d in _descriptions(v)]
+    return []
+
+
 def _safety(c: Check, tools: list[dict]) -> None:
     rows = []
     for tool in tools:
+        # What the AI reads as prose: the tool's own words and every description inside its input schema. Input
+        # names are left out: a login tool is meant to have a "password" input.
         text = " ".join(str(tool.get(k) or "") for k in ("name", "title", "description"))
-        text += " " + json.dumps(tool.get("inputSchema") or {})
+        text += " " + " ".join(_descriptions(tool.get("inputSchema")))
         found = [why for pattern, why in HIDDEN_INSTRUCTIONS if re.search(pattern, text, re.I)]
         notes = list(found)
         ann = tool.get("annotations") or {}
