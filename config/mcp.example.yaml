@@ -1,0 +1,20 @@
+# MCP servers for: python -m ui_automation.mcp_audit --config config/mcp.example.yaml
+# Copy it to config/private/ for your own servers (that folder is never committed).
+# Tokens are never written here: name the environment variable that holds each one (.env on your computer).
+mcp:
+  budget_ms: 2000  # the handshake and the tool list must each answer within this
+  servers:
+    - name: Example remote server
+      url: https://example.ie/mcp
+      # sse_url: https://example.ie/sse   # where the older HTTP+SSE connection is, if not beside /mcp
+      token_env: EXAMPLE_MCP_TOKEN        # optional: the server must refuse callers without it
+      roles:                              # optional: what each login may and may not see
+        - name: viewer
+          token_env: EXAMPLE_MCP_VIEWER_TOKEN
+          must_see: [search]
+          must_not_see: [delete_user, export_all]
+      call_readonly:                      # optional: tools to call, only if the server marks them read-only
+        - tool: search
+          arguments: {query: "test"}
+    - name: Example local server
+      command: npx -y @example/mcp-server  # started on this computer (stdio); only works in a local session
