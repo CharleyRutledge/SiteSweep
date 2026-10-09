@@ -27,6 +27,9 @@ Then carry on with what they asked.
 
 ## Working on the code
 
+- When SiteSweep was cloned into someone else's session (the README's "Open in Claude" message), work from that
+  clone. Never fork it, and never commit to, push to or change the person's own repository.
+
 - When someone asks to test a website or app, in any words, follow `.claude/skills/test/SKILL.md` (the `/test`
   steps): it asks what to test, how thorough, and what kind of testing they want before running anything.
 - To test an MCP server, follow `.claude/skills/test-mcp/SKILL.md`; to watch a site or MCP server over time

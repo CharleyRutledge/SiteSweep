@@ -15,15 +15,21 @@ and pytest, with optional summaries by Claude.
 
 ## Open in Claude
 
-[![1. Fork on GitHub](https://img.shields.io/badge/1.%20Fork-on%20GitHub-24292F?style=for-the-badge&logo=github&logoColor=white)](https://github.com/CharleyRutledge/SiteSweep/fork)
-[![2. Open in Claude (fork first)](https://img.shields.io/badge/2.%20Open%20in%20Claude-fork%20first-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://claude.ai/code?repositories=CharleyRutledge/SiteSweep&prompt=%2Ftest)
+[![Open in Claude](https://img.shields.io/badge/Open%20in%20Claude-test%20a%20site-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://claude.ai/code?prompt=Set%20up%20SiteSweep%20for%20me%20in%20this%20session%3A%20git%20clone%20https%3A%2F%2Fgithub.com%2FCharleyRutledge%2FSiteSweep%20into%20a%20new%20folder%20here%20%28don%27t%20fork%20it%2C%20and%20don%27t%20change%20or%20push%20to%20my%20repository%29%2C%20install%20it%20with%20python%20-m%20pip%20install%20-r%20requirements.txt%2C%20and%20read%20its%20AGENTS.md.%20Then%20ask%20me%20what%20to%20test%20%28a%20website%2C%20an%20MCP%20server%2C%20or%20hourly%20monitoring%29%20and%20follow%20the%20matching%20steps%20in%20its%20.claude%2Fskills%20folder%20%28test%2C%20test-mcp%20or%20reliability%29.)
 
-**Using SiteSweep for the first time?** Tap **1. Fork** to make your own copy, then start a session with your
-fork (see "First time" below). **2. Open in Claude** opens this repository itself, which only its owner can
-do; on a computer it fills in the repository and `/test` for you.
+No fork and no setup: Claude fetches SiteSweep into its own session and runs it there. Your GitHub account and
+repositories are not changed. Click the button, or start a Claude Code session
+([claude.ai/code](https://claude.ai/code) or the Claude app) and send this message:
 
-Once a session is open with SiteSweep, Claude asks what to test and how thorough. It then
-runs the site audit and explains the report. In the same session you can also type:
+```text
+Set up SiteSweep for me in this session: git clone https://github.com/CharleyRutledge/SiteSweep into a new folder here (don't fork it, and don't change or push to my repository), install it with python -m pip install -r requirements.txt, and read its AGENTS.md. Then ask me what to test (a website, an MCP server, or hourly monitoring) and follow the matching steps in its .claude/skills folder (test, test-mcp or reliability).
+```
+
+A Claude session always needs one of your own repositories selected: any one will do (tap **Add repository**
+on a phone). SiteSweep is downloaded next to it and nothing is written to it.
+
+Claude then asks what to test and how thorough, runs the checks and explains the report. Just ask for what you
+want; in a session opened on SiteSweep itself, these are also commands you can type:
 
 | Command | What it does |
 |---------|--------------|
@@ -31,11 +37,10 @@ runs the site audit and explains the report. In the same session you can also ty
 | `/test-mcp` | Test an MCP server by its address or as a local command ([steps](.claude/skills/test-mcp/SKILL.md)) |
 | `/reliability` | Watch a site or MCP server every hour: your own private page with uptime, MTBF and MTTR ([steps](.claude/skills/reliability/SKILL.md)) |
 
-**First time: make your own copy (fork).** Claude can only open repositories connected to your own GitHub
-account, so other people's repositories, this one included, aren't in your list. On GitHub, tap **Fork** at the
-top of this page (it's free and the licence allows it). Then start a session at claude.ai/code (or in the
-Claude app), tap **Add repository**, pick your fork, and type `/test`. Your own settings never go into your fork
-either: `config/private/` and `.env` are never committed. To get new versions later, tap **Sync fork** on GitHub.
+**Your own copy of this repository (its owner).** Open it directly:
+[claude.ai/code with SiteSweep](https://claude.ai/code?repositories=CharleyRutledge/SiteSweep&prompt=%2Ftest), then
+type `/test`, `/test-mcp` or `/reliability`. The phone app doesn't fill the repository in from a link: tap
+**Add repository** and pick it.
 
 **A website (in the cloud, the button).** Before testing, `/test` checks what the session's network can reach
 (`python -m ui_automation.reach <address>`). If something is refused, it lists the exact domains to allow,
