@@ -125,6 +125,19 @@ injected input, no port scanning. It checks:
 Each result names the standard it comes from: OWASP ASVS 4.0.3 and Top 10 (2021). SOC 2 and HIPAA controls
 are mapped (the control a result is evidence for), not assessed: that needs an auditor.
 
+**Languages and translations**, on up to 5 pages and every language version of the home page:
+
+- each page says which language it is in (WCAG 3.1.1), with a valid code, and its text really is in that
+  language (recognised from its most common short words, for English, Irish, French, German, Spanish,
+  Italian, Dutch, Portuguese and Polish)
+- no translation keys (`checkout.button.submit`), `{{placeholders}}` or "translation missing" showing, and
+  no garbled characters (`CafÃ©`)
+- right-to-left languages (Arabic, Hebrew...) set to `dir="rtl"`
+- for a site in several languages: every version listed with `hreflang` opens, says the right language, is
+  really translated, links back, fits a 375px phone screen, and a language switcher is on the page
+
+This finds what is missing or left untranslated; it doesn't judge the quality of a translation.
+
 ## Audit any website
 
 `site_audit/` audits a whole site from its `base_url`. It finds the pages by following the site's own links,
@@ -148,6 +161,7 @@ home page first, up to `audit.max_pages`. Every page found is then checked for:
   public go in `audit.public_api`
 - load time against `audit.load_budget_ms`
 - security, with safe checks only (see below)
+- languages and translations (see below)
 - a WCAG scan, with a copyable fix for each issue: axe-core's rules, plus what axe cannot check alone,
   done the way a person uses the page: Tab through it (focus never stuck, always visible, nothing
   mouse-only), larger text spacing (no text cut off), alt text that says nothing, videos without

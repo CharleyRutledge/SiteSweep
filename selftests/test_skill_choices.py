@@ -18,7 +18,8 @@ def _choices() -> dict[str, list[str]]:
 def test_every_audit_check_belongs_to_exactly_one_choice() -> None:
     choices = _choices()
     assert set(choices) == {"Pages, links and speed", "Accessibility", "Phones and screen sizes",
-                            "Security, logins and API", "Irish/EU website requirements",
+                            "Security, logins and API", "Languages and translations",
+                            "Irish/EU website requirements",
                             "GDPR and cookies"}, choices
     source = (REPO / "site_audit" / "test_site_audit.py").read_text(encoding="utf-8")
     checks = [c for c in re.findall(r"^def (test_\w+)\(", source, flags=re.M) if c != "test_crawl_found_the_site"]
@@ -26,3 +27,13 @@ def test_every_audit_check_belongs_to_exactly_one_choice() -> None:
         owners = [choice for choice, words in choices.items() if any(w in check for w in words)]
         assert len(owners) == 1, f"{check} belongs to {owners or 'no choice'}: update the table in SKILL.md"
     assert not any("crawl" in w for words in choices.values() for w in words)  # always added on its own
+
+
+def test_each_question_offers_at_most_four_options() -> None:
+    """AskUserQuestion shows at most four options per question."""
+    text = (REPO / ".claude" / "skills" / "test" / "SKILL.md").read_text(encoding="utf-8")
+    text = text.split("## 2. Ask what to test", 1)[1].split("\n## ", 1)[0]
+    for number in ("3", "4"):
+        block = re.split(r"\n\d\. \*\*|\n\n", text.split(f"\n{number}. **", 1)[1], maxsplit=1)[0]
+        options = re.findall(r'^   - "', block, flags=re.M)
+        assert 2 <= len(options) <= 4, (number, len(options))
