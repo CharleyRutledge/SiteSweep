@@ -96,7 +96,7 @@ def test_a_refused_site_is_listed_first(proxy, monkeypatch) -> None:
     monkeypatch.setenv("CLAUDE_CODE_REMOTE", "true")
     code, message = reach.report("https://blocked.example/shop")
     assert code == 4
-    assert "allow these domains:\n\n    blocked.example\n\nHow:" in message and "Custom" in message
+    assert "allow these domains:\n\n    blocked.example\n\nHow:" in message and "Limited" in message and "Allowed" in message
 
 
 def test_an_address_on_your_computer_points_to_the_desktop_app_or_remote_control(monkeypatch) -> None:

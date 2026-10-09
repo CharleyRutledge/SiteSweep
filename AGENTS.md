@@ -29,5 +29,15 @@ Then carry on with what they asked.
 
 - When someone asks to test a website or app, in any words, follow `.claude/skills/test/SKILL.md` (the `/test`
   steps): it asks what to test, how thorough, and what kind of testing they want before running anything.
+- To test an MCP server, follow `.claude/skills/test-mcp/SKILL.md`; to watch a site or MCP server over time
+  (uptime, MTBF, MTTR), follow `.claude/skills/reliability/SKILL.md`. Each person's reliability history stays in
+  their own private page, never in the repository.
+- Safe checks only: never send attack-like requests, never submit forms, and never call an MCP tool unless the
+  person listed it and the server marks it read-only.
+- Logins come only from environment variables or `.env`, named by the person (e.g. `token_env`). Never ask for a
+  token in the chat, never print `.env`, and never reuse the session's own credentials (such as its GitHub token)
+  to test something else.
+- Before reporting a failure on a real site or server, check it against what the site actually sends: a check
+  can be wrong. Fix SiteSweep when it is, and say which findings were real.
 - Self-tests: `python -m pytest -c selftests/pytest.ini selftests -n auto`.
 - Never commit passwords, tokens or `.env`. Settings for private apps belong in `config/private/` (git-ignored).
