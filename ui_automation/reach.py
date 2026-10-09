@@ -22,8 +22,9 @@ from ui_automation.browsers import DOWNLOAD_HOSTS, launch_options, missing_brows
 from ui_automation.local import is_local
 
 DOCS = "https://code.claude.com/docs/en/cloud-environments#network-access"
-HOW = ("How: click the environment's name in this session's title bar -> Edit -> Network access -> Custom.\n"
-       "Keep \"default package managers\" ticked, add the domains above under Allowed domains, and save.\n"
+HOW = ("How: click the environment's name in this session's title bar -> Edit -> Network access -> Limited\n"
+       "(called Custom in older apps). Keep \"Allow package managers\" ticked, add the domains above under Allowed\n"
+       "domains, and save. On a phone, the same menu is in the session at claude.ai/code in the browser.\n"
        f"Then say \"done\" and I'll check again. Steps: {DOCS}")
 ON_YOUR_COMPUTER = """\
 {url} is on your own computer, and this session runs in the cloud: it can't reach your computer.

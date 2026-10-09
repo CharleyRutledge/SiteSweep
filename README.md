@@ -2,8 +2,10 @@
 
 **Point it at any website or web app and it checks every page:** broken links and images, errors, slow pages,
 accessibility (WCAG 2.1 AA / EN 301 549, with a copyable fix for each issue), Irish/EU website requirements,
-phones and every screen size, Chrome, Firefox and Safari's engine, the app's API, and what each kind of
-logged-in user can and can't see. You get a plain-language report, on your computer, by Telegram or by email.
+GDPR and cookies, security (safe checks only), languages and translations, phones and every screen size,
+Chrome, Firefox and Safari's engine (with a compatibility grid), the app's API, and what each kind of
+logged-in user can and can't see. It also tests **MCP servers**, and can watch a site or MCP server every hour
+for uptime, MTBF and MTTR. You get a plain-language report, on your computer, by Telegram or by email.
 
 Created by [Charley Rutledge](https://github.com/CharleyRutledge). Built with Python, [Playwright](https://playwright.dev)
 and pytest, with optional summaries by Claude.
@@ -16,15 +18,26 @@ and pytest, with optional summaries by Claude.
 [![Open in Claude](https://img.shields.io/badge/Open%20in%20Claude-test%20a%20site-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://claude.ai/code?repositories=CharleyRutledge/SiteSweep&prompt=%2Ftest)
 
 Click the button: Claude opens a session with the latest code and asks what to test and how thorough. It then
-runs the site audit and explains the report. The `/test` steps are in
-[`.claude/skills/test/SKILL.md`](.claude/skills/test/SKILL.md).
+runs the site audit and explains the report. In the same session you can also type:
+
+| Command | What it does |
+|---------|--------------|
+| `/test` | Test a website or app: asks what, how thorough, which kinds of testing and which legal checks ([steps](.claude/skills/test/SKILL.md)) |
+| `/test-mcp` | Test an MCP server by its address or as a local command ([steps](.claude/skills/test-mcp/SKILL.md)) |
+| `/reliability` | Watch a site or MCP server every hour: your own private page with uptime, MTBF and MTTR ([steps](.claude/skills/reliability/SKILL.md)) |
 
 **A website (in the cloud, the button).** Before testing, `/test` checks what the session's network can reach
 (`python -m ui_automation.reach <address>`). If something is refused, it lists the exact domains to allow,
 ready to copy: the site, any other sites its pages load from, and the browser download servers. You paste them
-once: the environment's name in the session's title bar -> **Edit** -> **Network access** -> **Custom** -> Allowed
-domains ([steps](https://code.claude.com/docs/en/cloud-environments#network-access)). Then say "done" and it checks
-again and runs.
+once: the environment's name in the session's title bar -> **Edit** -> **Network access** -> **Limited** (called
+**Custom** in older apps) -> **Allowed domains**, with **Allow package managers** left ticked
+([steps](https://code.claude.com/docs/en/cloud-environments#network-access)). This works from the phone app too;
+if it doesn't show the menu, open the session at claude.ai/code in the phone's browser. Then say "done" and it
+checks again and runs.
+
+**Logins (tokens and passwords)** are never typed into the chat or stored in the repository. On your computer
+they go in `.env`; in a cloud session, add them in the same **Edit** screen under **Network secrets** (or as an
+environment variable). A new session picks them up.
 
 **An app on your computer (`localhost`).** A cloud session can't reach your computer, so run `/test` in a Claude
 session that runs on your computer. Start the app first, then either:
@@ -53,9 +66,11 @@ The browsers it needs install themselves on the first run, and `--open` opens th
 
 | Path | Contents |
 |------|----------|
-| `reports/<timestamp>/report.html` | HTML report with embedded step screenshots |
+| `reports/<timestamp>/summary.html` | The plain-language report: what each check means, what it found (evidence tables), fixes, the compatibility grid, website requirements and GDPR |
+| `reports/<timestamp>/summary.json` | The same results as data (also lists what was not run and why) |
+| `reports/<timestamp>/report.html` | The detailed report ("SiteSweep detailed report", pytest-html), with embedded step screenshots; corrected after each run to meet WCAG 2.2 AA |
 | `reports/latest/report.html` | Copy of the last run |
-| `reports/<timestamp>/summary.html` | Short phone-friendly report (sent by Telegram/email) with videos, screenshots and traces embedded |
+| `reports/<timestamp>/summary.html` (on a phone) | Fits a 320px screen; it is what Telegram and email send, with videos, screenshots and traces embedded |
 | `reports/<timestamp>/videos/` | Recordings per browser test: `.webm`, plus `.mp4` when `ffmpeg` is installed (plays on iPhone) |
 | `reports/<timestamp>/screenshots/` | A screenshot per test step |
 | `reports/<timestamp>/failure-screenshots/` | Playwright's screenshot at the moment a test failed |
@@ -333,9 +348,12 @@ talks to real local servers over real sockets: a scenario website, SMTP servers 
 TLS, login), and local stand-ins for the Telegram and Anthropic APIs, used for the error paths
 (401/429/500, timeouts, broken replies) the real services cannot produce on demand.
 
+While working on one feature, run just its tests (much quicker), e.g.
+`python -m pytest -c selftests/pytest.ini selftests/test_gdpr.py`; CI runs them all on every pull request.
+
 ```powershell
 python -m pip install -r requirements-dev.txt
-python -m pytest -c selftests/pytest.ini selftests -n auto    # every push and pull request in CI (~3 min on 4 cores)
+python -m pytest -c selftests/pytest.ini selftests -n auto    # every push and pull request in CI (~6 min on 4 cores)
 python -m pytest -c selftests/pytest.ini selftests -m load -s # by hand (Actions -> Extended tests): load / performance numbers
 python -m pytest -c selftests/pytest.ini selftests -m live    # by hand (Actions -> Extended tests): real Claude + Telegram
 ```
@@ -351,6 +369,12 @@ python -m pytest -c selftests/pytest.ini selftests -m live    # by hand (Actions
 | Security | report escaping (test names, messages, AI text, media paths), dashboard XSS, path traversal and symlink escape, CSRF, DNS rebinding, loopback-only binding, secret scan of all output and artifacts, `pip-audit`, `bandit` |
 | Accessibility | our report and dashboard meet WCAG 2.2 AA (axe, keyboard, focus, reflow, text alternatives); scanning of accessible and broken pages; standards and thresholds |
 | Website requirements | compliant vs non-compliant shop page: tracking cookies and tracker requests before consent, accept-only banners, missing or broken links, company details |
+| GDPR and cookies | a good and two bad cookie banners: tracking before a choice, no reject button, tiny reject that doesn't stop tracking, pre-ticked boxes, Art. 13 notice items, forms; a small organisation's notice without a DPO |
+| Security (safe checks) | a well-set-up and a badly set-up server over HTTP and HTTPS (test certificate authority): headers, versions, cookie flags, private files found by contents and never shown, browsable folders, CORS, plain-http files, certificate expiry and trust |
+| Languages | a site in English, Irish and German done right, and each common mistake: no or wrong `lang`, placeholders and keys showing, garbled text, untranslated pages, missing hreflang links back, right-to-left pages |
+| Compatibility | the grid (worst result per browser over roles, a column per computer), a real two-browser run with phones, combining runs from two computers |
+| Reliability | up, error and no-answer servers, a network that refuses the site (not checked, never down), MTBF / MTTR worked by hand, the private page doing the same sums in a browser, MCP servers up only after the handshake |
+| MCP servers | real MCP servers over streamable HTTP, HTTP+SSE and stdio, one good and one with every problem planted: handshake, lists, speed, Origin, CORS, logins and OAuth details, tool poisoning, roles, versions, read-only calls only |
 | Load | dashboard with 2,000 runs under 16 concurrent clients, 5 MB report downloads, a 500-test run, concurrent CLI runs, report size budget |
 
 The `CLI` also honours `WEB_UI_REPORTS_DIR` (where run folders go) and `TELEGRAM_API_BASE` (Bot API address).
@@ -442,12 +466,14 @@ Create a bot via [@BotFather](https://t.me/BotFather), add the bot to a chat, an
 SiteSweep/
   config/                  # settings files; your own apps' go in config/private/ (git-ignored)
   site_audit/              # the whole-site audit
+  reliability/             # the private uptime page each person publishes for themselves (/reliability)
   tests/                   # accessibility and website-requirement checks of base_url
   practice_sites/          # suites for public practice websites
   pages/base_page.py       # semantic helpers + step() for page objects
-  ui_automation/           # command line, settings, browsers, network check, reports, Claude/email/Telegram
+  ui_automation/           # command line, settings, browsers, network check, reports, Claude/email/Telegram,
+                           # gdpr.py, security.py, localization.py, reliability.py, mcp_audit.py
   selftests/               # the framework's own tests
-  .claude/                 # the /test command and cloud session setup
+  .claude/                 # /test, /test-mcp and /reliability, and cloud session setup
   .github/                 # workflows (all started by hand), Dependabot, Sponsor button
   LICENSE, NOTICE          # Apache License 2.0 and the attribution notice
   AGENTS.md, CLAUDE.md     # instructions for AI assistants
