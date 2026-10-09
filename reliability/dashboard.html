@@ -1,0 +1,187 @@
+<title>Site Reliability</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a monitoring sheet. One summary row per address (state first), then its incidents; mono for every measured value. */
+:root {
+  --bg: #f6f7f8; --surface: #ffffff; --ink: #18202a; --muted: #5a6573; --line: #dde1e6;
+  --accent: #1f6f8b; --up: #17784a; --up-bg: #e5f4ec; --down: #b3261e; --down-bg: #fbe9e7; --unk: #8a6a00;
+  --body: "Atkinson Hyperlegible", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11161c; --surface: #18202a; --ink: #e6eaef; --muted: #9aa5b2; --line: #2a3441;
+  --accent: #6cc0dc; --up: #5fd39a; --up-bg: #15301f; --down: #ff8a80; --down-bg: #3a1b19; --unk: #e0c25a;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11161c; --surface: #18202a; --ink: #e6eaef; --muted: #9aa5b2; --line: #2a3441;
+  --accent: #6cc0dc; --up: #5fd39a; --up-bg: #15301f; --down: #ff8a80; --down-bg: #3a1b19; --unk: #e0c25a;
+  color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--body); }
+main { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; display: grid; gap: 20px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; justify-content: space-between; }
+h1 { margin: 0; font-size: 1.6rem; text-wrap: balance; }
+.sub { color: var(--muted); margin: 4px 0 0; font-size: .95rem; }
+.range { display: flex; gap: 6px; }
+.range button { font: 600 .85rem var(--mono); background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+.range button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.site { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.url { font: 600 .95rem var(--mono); overflow-wrap: anywhere; min-width: 0; flex: 1 1 240px; }
+.pill { font: 700 .75rem var(--body); letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; }
+.pill.up { color: var(--up); background: var(--up-bg); } .pill.down { color: var(--down); background: var(--down-bg); }
+.pill.unknown { color: var(--unk); border: 1px solid var(--unk); }
+dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px 16px; margin: 0; }
+dt { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+dd { margin: 2px 0 0; font: 600 1.25rem var(--mono); font-variant-numeric: tabular-nums; }
+dd small { font: 400 .75rem var(--body); color: var(--muted); display: block; }
+svg.spark { width: 100%; height: 48px; display: block; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.empty, .note { color: var(--muted); }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 8px; padding: 24px; }
+@media (prefers-reduced-motion: no-preference) { .site { transition: border-color .2s; } }
+</style>
+
+<main>
+  <header>
+    <div>
+      <h1>Site Reliability</h1>
+      <p class="sub" id="summary">Waiting for the first hourly check.</p>
+    </div>
+    <div class="range" role="group" aria-label="Period">
+      <button type="button" id="r7" data-days="7" aria-pressed="false">7 days</button>
+      <button type="button" id="r30" data-days="30" aria-pressed="true">30 days</button>
+      <button type="button" id="r90" data-days="90" aria-pressed="false">90 days</button>
+    </div>
+  </header>
+  <div id="sites">
+    <p class="empty">No checks yet. Your hourly SiteSweep Routine adds one per address every hour; the first
+      results appear here within the hour. Only you can see this page.</p>
+  </div>
+  <p class="note">An outage starts at the first check that found the address down and ends at the next check that
+    found it up, so times are to the hour. MTBF is time up divided by outages; MTTR is the average time from going
+    down to being back. Hours this computer's network couldn't reach the site count as not checked, never as down.</p>
+</main>
+
+<script>
+const H = 3600e3;
+const t = at => Date.parse(at);
+
+// The same sums as ui_automation/reliability.py stats().
+function stats(records, url) {
+  const all = records.filter(r => r.url === url);
+  const checks = all.filter(r => r.up === true || r.up === false).sort((a, b) => a.at < b.at ? -1 : 1);
+  const out = { url, checks: checks.length, not_checked: all.length - checks.length, uptime_pct: null,
+                incidents: [], mtbf_hours: null, mttr_minutes: null, down_now: false };
+  if (!checks.length) return out;
+  const inc = [];
+  for (const r of checks) {
+    if (!r.up && (!inc.length || inc[inc.length - 1].end !== null)) inc.push({ start: r.at, end: null, error: r.error || "" });
+    else if (r.up && inc.length && inc[inc.length - 1].end === null) inc[inc.length - 1].end = r.at;
+  }
+  const last = checks[checks.length - 1];
+  const span = (t(last.at) - t(checks[0].at)) / 1000;
+  const durations = inc.filter(i => i.end).map(i => (t(i.end) - t(i.start)) / 1000);
+  const openDown = inc.length && inc[inc.length - 1].end === null ? (t(last.at) - t(inc[inc.length - 1].start)) / 1000 : 0;
+  inc.forEach(i => { i.minutes = i.end ? Math.round((t(i.end) - t(i.start)) / 60000) : null; });
+  out.uptime_pct = Math.round(10000 * checks.filter(r => r.up).length / checks.length) / 100;
+  out.incidents = inc;
+  out.down_now = !last.up;
+  if (inc.length) out.mtbf_hours = Math.round((span - durations.reduce((a, b) => a + b, 0) - openDown) / 3600 / inc.length * 10) / 10;
+  if (durations.length) out.mttr_minutes = Math.round(durations.reduce((a, b) => a + b, 0) / durations.length / 60);
+  return out;
+}
+window.reliabilityStats = stats;  // checked against the Python sums by SiteSweep's self-tests
+
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === "class" ? e.className = v : e.setAttribute(k, v);
+  for (const k of kids) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return e;
+};
+const when = at => new Date(at).toLocaleString("en-IE", { timeZone: "Europe/Dublin", day: "numeric", month: "short",
+                                                          hour: "2-digit", minute: "2-digit" });
+const hours = h => h === null ? "—" : h >= 48 ? `${Math.round(h / 24)} days` : `${h} h`;
+const minutes = m => m === null ? "—" : m >= 120 ? `${Math.round(m / 6) / 10} h` : `${m} min`;
+
+function spark(checks) {
+  const pts = checks.filter(r => typeof r.ms === "number").slice(-48);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "spark"); svg.setAttribute("viewBox", "0 0 300 48"); svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("role", "img");
+  if (pts.length < 2) { svg.setAttribute("aria-label", "Not enough checks yet for a response-time line"); return svg; }
+  const max = Math.max(...pts.map(r => r.ms), 1);
+  const x = i => i * 300 / (pts.length - 1), y = ms => 44 - ms / max * 40;
+  const line = pts.map((r, i) => `${x(i).toFixed(1)},${y(r.ms).toFixed(1)}`).join(" ");
+  const area = document.createElementNS(svg.namespaceURI, "polygon");
+  area.setAttribute("points", `0,48 ${line} 300,48`); area.setAttribute("fill", "var(--accent)"); area.setAttribute("opacity", ".12");
+  const pl = document.createElementNS(svg.namespaceURI, "polyline");
+  pl.setAttribute("points", line); pl.setAttribute("fill", "none"); pl.setAttribute("stroke", "var(--accent)"); pl.setAttribute("stroke-width", "1.5");
+  svg.append(area, pl);
+  pts.forEach((r, i) => { if (!r.up) { const c = document.createElementNS(svg.namespaceURI, "circle");
+    c.setAttribute("cx", x(i)); c.setAttribute("cy", y(r.ms)); c.setAttribute("r", "3"); c.setAttribute("fill", "var(--down)"); svg.append(c); } });
+  svg.setAttribute("aria-label", `Response time of the last ${pts.length} checks, up to ${max} ms`);
+  return svg;
+}
+
+let days = 30, records = [];
+function render() {
+  const since = new Date(Date.now() - days * 24 * H).toISOString();
+  const shown = records.filter(r => r.at >= since);
+  const urls = [...new Set(shown.map(r => r.url))];
+  const box = document.getElementById("sites");
+  if (!urls.length) return;
+  box.replaceChildren(...urls.map(url => {
+    const s = stats(shown, url);
+    const state = s.checks === 0 ? ["unknown", "Not checked"] : s.down_now ? ["down", "Down now"] : ["up", "Up"];
+    const card = el("section", { class: "site", "aria-label": url },
+      el("div", { class: "top" }, el("span", { class: "url" }, url), el("span", { class: `pill ${state[0]}` }, state[1])),
+      el("dl", {},
+        el("div", {}, el("dt", {}, "Uptime"), el("dd", {}, s.uptime_pct === null ? "—" : `${s.uptime_pct}%`,
+          el("small", {}, `${s.checks} checks${s.not_checked ? `, ${s.not_checked} not checked` : ""}`))),
+        el("div", {}, el("dt", {}, "Outages"), el("dd", {}, s.incidents.length)),
+        el("div", {}, el("dt", {}, "MTBF"), el("dd", {}, s.incidents.length ? hours(s.mtbf_hours) : "no outages",
+          el("small", {}, "time between failures"))),
+        el("div", {}, el("dt", {}, "MTTR"), el("dd", {}, minutes(s.mttr_minutes), el("small", {}, "time to recover")))),
+      spark(shown.filter(r => r.url === url).sort((a, b) => a.at < b.at ? -1 : 1)));
+    if (s.incidents.length) {
+      const rows = s.incidents.slice().reverse().slice(0, 20).map(i => el("tr", {},
+        el("td", { class: "num" }, when(i.start)), el("td", { class: "num" }, i.end ? when(i.end) : "still down"),
+        el("td", { class: "num" }, minutes(i.minutes)), el("td", {}, i.error || "")));
+      card.append(el("div", { class: "table-wrap" }, el("table", {},
+        el("caption", { class: "note", style: "text-align:left" }, "Outages, latest first"),
+        el("thead", {}, el("tr", {}, ...["Went down", "Back up", "Lasted", "Why"].map(h => el("th", { scope: "col" }, h)))),
+        el("tbody", {}, ...rows))));
+    }
+    return card;
+  }));
+  const down = urls.filter(u => stats(shown, u).down_now).length;
+  const last = shown.map(r => r.at).sort().pop();
+  document.getElementById("summary").textContent =
+    `${urls.length} address(es), ${down ? `${down} down now` : "all up"}. Last check ${last ? when(last) : "—"} (Irish time).`;
+}
+
+document.querySelectorAll(".range button").forEach(b => b.addEventListener("click", () => {
+  days = Number(b.dataset.days);
+  document.querySelectorAll(".range button").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
+  render();
+}));
+
+(async () => {
+  const db = await window.claude?.use?.("db");
+  if (!db) {
+    document.getElementById("summary").textContent = "The check history can't be read in this view.";
+    return;
+  }
+  // One document per day ("checks/2026-10-09"), each holding that day's checks.
+  db.collection("checks").orderBy("day", "desc").limit(100).onSnapshot(snap => {
+    records = snap.docs.flatMap(d => (d.data()?.checks || []));
+    render();
+  }, () => { document.getElementById("summary").textContent = "The check history couldn't be loaded. Reload to try again."; });
+})();
+</script>
