@@ -105,6 +105,26 @@ The report shows each result with its law, and tables of the cookies, other site
 Only the banner's own buttons are pressed, forms are never submitted, and tracker requests are blocked.
 These checks find clear problems; they can't prove a site complies with GDPR.
 
+**Security, safe checks only** (`audit.security_checks`; `auto` leaves them for the deployed site). Done with
+ordinary GET requests anyone's browser makes, never anything attack-like: no logins tried, no forms sent, no
+injected input, no port scanning. It checks:
+
+- HTTPS, http:// sent on to it, and the certificate (trusted, not about to expire)
+- the security headers: HSTS, nosniff, Referrer-Policy, clickjacking protection; a Content Security Policy
+  and Permissions-Policy are suggested
+- software versions given away in headers (`Server: Apache/2.4.41`, `X-Powered-By`)
+- cookies the site sets: Secure, HttpOnly on login cookies, SameSite
+- files or forms on HTTPS pages that use plain http
+- 7 well-known files that must never be public (`.git`, `.env`, `.htpasswd`, a `wp-config.php` backup,
+  server status, `phpinfo`, `.DS_Store`), recognised by their contents, so a "not found" page that answers
+  200 never counts. If one is found, the report gives its size, never its contents
+- folders of the site's own files that list everything in them
+- CORS: whether another website may read the site's data, with or without the visitor's login
+- `/.well-known/security.txt` (suggested)
+
+Each result names the standard it comes from: OWASP ASVS 4.0.3 and Top 10 (2021). SOC 2 and HIPAA controls
+are mapped (the control a result is evidence for), not assessed: that needs an auditor.
+
 ## Audit any website
 
 `site_audit/` audits a whole site from its `base_url`. It finds the pages by following the site's own links,
@@ -127,7 +147,7 @@ home page first, up to `audit.max_pages`. Every page found is then checked for:
   are replayed (nothing that changes data), and tokens never reach a report. Endpoints meant to be
   public go in `audit.public_api`
 - load time against `audit.load_budget_ms`
-- HTTPS and security headers
+- security, with safe checks only (see below)
 - a WCAG scan, with a copyable fix for each issue: axe-core's rules, plus what axe cannot check alone,
   done the way a person uses the page: Tab through it (focus never stuck, always visible, nothing
   mouse-only), larger text spacing (no text cut off), alt text that says nothing, videos without

@@ -52,6 +52,8 @@ SECURE_HEADERS = {"Strict-Transport-Security": "max-age=31536000", "X-Content-Ty
 
 def _serve(pages: dict[str, str]) -> Iterator[str]:
     class Handler(BaseHTTPRequestHandler):
+        server_version, sys_version = "web", ""  # a well-run server doesn't name its software version
+
         def do_GET(self) -> None:  # noqa: N802
             path = self.path.split("?")[0]
             if path == "/slow":
