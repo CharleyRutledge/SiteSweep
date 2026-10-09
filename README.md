@@ -26,6 +26,14 @@ runs the site audit and explains the report. In the same session you can also ty
 | `/test-mcp` | Test an MCP server by its address or as a local command ([steps](.claude/skills/test-mcp/SKILL.md)) |
 | `/reliability` | Watch a site or MCP server every hour: your own private page with uptime, MTBF and MTTR ([steps](.claude/skills/reliability/SKILL.md)) |
 
+**On a phone.** The Claude app opens the button's link but doesn't fill in the repository, so it asks you to
+pick one ("A repository must be selected to start a session"). Tap **Add repository** and choose SiteSweep, keep
+the environment you set up, then type `/test` (or `/test-mcp`, `/reliability`). If SiteSweep isn't in your
+list, it isn't connected to your GitHub account: on GitHub, tap **Fork** on this repository and pick your fork
+instead (the licence allows it; your own settings stay out of it, as `config/private/` and `.env` are never
+committed). Or open the link in the phone's browser rather than the app, or use a computer, where the button
+fills it in.
+
 **A website (in the cloud, the button).** Before testing, `/test` checks what the session's network can reach
 (`python -m ui_automation.reach <address>`). If something is refused, it lists the exact domains to allow,
 ready to copy: the site, any other sites its pages load from, and the browser download servers. You paste them
