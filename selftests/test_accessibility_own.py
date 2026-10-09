@@ -54,12 +54,16 @@ def pages(runs, dashboard_url) -> dict[str, str]:
     return {
         "report-failing": (runs["failing"].run_dir / "summary.html").as_uri(),
         "report-passing": (runs["passing"].run_dir / "summary.html").as_uri(),
+        # The detailed report (pytest-html, made accessible by ui_automation/reporting/full_report.py).
+        "full-report-failing": (runs["failing"].run_dir / "report.html").as_uri(),
+        "full-report-passing": (runs["passing"].run_dir / "report.html").as_uri(),
         "dashboard": dashboard_url,
     }
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-@pytest.mark.parametrize("name", ["report-failing", "report-passing", "dashboard"])
+@pytest.mark.parametrize("name", ["report-failing", "report-passing", "full-report-failing", "full-report-passing",
+                                  "dashboard"])
 def test_no_wcag22_aa_violations(browser: Browser, runs, dashboard_url, name: str, scheme: str) -> None:
     page = browser.new_page(color_scheme=scheme)
     page.goto(pages(runs, dashboard_url)[name])
@@ -68,7 +72,7 @@ def test_no_wcag22_aa_violations(browser: Browser, runs, dashboard_url, name: st
     assert not violations, describe(violations)
 
 
-@pytest.mark.parametrize("name", ["report-failing", "dashboard"])
+@pytest.mark.parametrize("name", ["report-failing", "full-report-failing", "dashboard"])
 def test_reflows_at_320_css_pixels(browser: Browser, runs, dashboard_url, name: str) -> None:
     """WCAG 1.4.10: no page-level horizontal scrolling at 320 px (400% zoom of a 1280 px screen)."""
     page = browser.new_page(viewport={"width": 320, "height": 640})
@@ -77,7 +81,7 @@ def test_reflows_at_320_css_pixels(browser: Browser, runs, dashboard_url, name: 
     assert page.evaluate("document.documentElement.scrollWidth") <= 320
 
 
-@pytest.mark.parametrize("name", ["report-failing", "report-passing", "dashboard"])
+@pytest.mark.parametrize("name", ["report-failing", "report-passing", "full-report-failing", "dashboard"])
 def test_page_basics(browser: Browser, runs, dashboard_url, name: str) -> None:
     page = browser.new_page()
     page.goto(pages(runs, dashboard_url)[name])
@@ -179,3 +183,37 @@ def test_without_javascript_the_fix_can_still_be_selected(browser: Browser, runs
     assert page.get_by_text("Press and hold a code box").is_visible()
     assert page.locator("pre.code").first.evaluate("e => getComputedStyle(e).userSelect") == "all"
     context.close()
+
+
+def test_full_report_still_works_and_is_usable_by_keyboard(browser: Browser, runs) -> None:
+    """The corrected pytest-html page: filters still filter (now by their labels), rows open with Enter, and
+    every stop shows where the focus is."""
+    page = browser.new_page()
+    page.goto((runs["failing"].run_dir / "report.html").as_uri())
+    assert page.title() == "SiteSweep detailed report"
+    rows = page.locator("#results-table tbody.results-table-row:not(.hidden)")
+    before = rows.count()
+    page.get_by_label("3 Passed", exact=False).uncheck()  # the label names the box
+    assert 0 < rows.count() < before
+    page.get_by_label("3 Passed", exact=False).check()
+    stops = _tab_through(page, limit=60)
+    assert any(s["tag"] == "input" for s in stops) and any(s["text"].startswith("Failed") for s in stops), stops
+    assert all(s["outline"] for s in stops), [s for s in stops if not s["outline"]]
+    first = page.locator(".collapsible .col-result").first
+    first.focus()
+    extras = page.locator(".extras-row").first
+    shown = extras.is_visible()
+    page.keyboard.press("Enter")
+    assert extras.is_visible() != shown  # Enter shows or hides the details, as a click does
+
+
+def test_full_report_is_only_corrected_once(tmp_path: Path, runs) -> None:
+    from ui_automation.reporting.full_report import make_accessible
+
+    copy = tmp_path / "report.html"
+    copy.write_text((runs["passing"].run_dir / "report.html").read_text(encoding="utf-8"), encoding="utf-8")
+    assert make_accessible(copy) is False  # the run already corrected it
+    assert copy.read_text(encoding="utf-8").count('lang="en"') == 1
+    other = tmp_path / "other.html"
+    other.write_text("<html><body>Not a pytest-html report</body></html>", encoding="utf-8")
+    assert make_accessible(other) is False and "lang" not in other.read_text(encoding="utf-8")

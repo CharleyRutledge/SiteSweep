@@ -402,7 +402,10 @@ def main(argv: list[str] | None = None) -> int:
                 print("Stopped the app.")
 
     # pytest has exited, so report.html and summary.json are complete: now analyse and notify.
+    from ui_automation.reporting.full_report import make_accessible
     from ui_automation.reporting.pipeline import notify_run
+
+    make_accessible(html_report)  # pytest-html's page, corrected to WCAG 2.2 AA like the rest of the reports
 
     notify_run(run_dir, settings)
 

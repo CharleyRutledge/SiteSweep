@@ -159,6 +159,10 @@ def browser_type_launch_args(pytestconfig: pytest.Config, settings: Settings, br
     return launch_options
 
 
+def pytest_html_report_title(report) -> None:  # noqa: ANN001
+    report.title = "SiteSweep detailed report"
+
+
 @pytest.fixture(scope="session")
 def browser_context_args(
     pytestconfig: pytest.Config,
