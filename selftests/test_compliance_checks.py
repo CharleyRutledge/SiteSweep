@@ -107,9 +107,13 @@ def test_the_real_privacy_policy_is_chosen_over_a_loose_mention() -> None:
     assert _find_link(links[:1], PRIVACY_LINK)["href"] == "https://x.ie/gdpr-partners"  # still found when alone
 
 
-def test_an_accessibility_statement_inside_the_faq_page_is_found(page) -> None:  # noqa: ANN001
+def test_an_accessibility_statement_inside_the_faq_page_is_found() -> None:
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from playwright.sync_api import sync_playwright
+
+    from playwright.sync_api import sync_playwright
 
     from ui_automation.compliance import _links, _statement_in_help_pages
 
@@ -132,11 +136,15 @@ def test_an_accessibility_statement_inside_the_faq_page_is_found(page) -> None: 
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         base = f"http://127.0.0.1:{server.server_port}"
-        page.goto(base + "/")
-        found = _statement_in_help_pages(page, _links(page))
-        assert found and found.passed and "/faqs/" in found.detail and "Add a clear" in found.detail
-        pages["/faqs/"] = "<p>Questions</p>"
-        assert _statement_in_help_pages(page, _links(page)) is None  # absent everywhere: still reported missing
+        with sync_playwright() as pw:  # its own, closed here: a shared sync Playwright leaves a loop for later tests
+            browser = pw.chromium.launch()
+            page = browser.new_context().new_page()
+            page.goto(base + "/")
+            found = _statement_in_help_pages(page, _links(page))
+            assert found and found.passed and "/faqs/" in found.detail and "Add a clear" in found.detail
+            pages["/faqs/"] = "<p>Questions</p>"
+            assert _statement_in_help_pages(page, _links(page)) is None  # absent everywhere: still missing
+            browser.close()
     finally:
         server.shutdown()
         server.server_close()
