@@ -67,10 +67,15 @@ SETTINGS = re.compile(r"(cookie|privacy|consent) (settings|preferences|choices)|
                       r"change (consent|cookie)|view preferences|customi[sz]e", re.I)
 
 # What GDPR Art. 13 says a privacy notice must tell people, and words that show the notice covers it.
+# Only needed when the organisation has a data protection officer (GDPR Art. 37: public bodies and large-scale
+# monitoring or sensitive data). Many small organisations don't, so not mentioning one is never a failure.
+DPO_ITEM = "Contact details of the data protection officer, if there is one"
 NOTICE_ITEMS = [
     ("Who is responsible (the controller) and how to contact them", r"controller|who we are|contact us|data protection officer"),
-    ("Contact details of the data protection officer, if there is one", r"data protection officer|\bDPO\b"),
-    ("Why personal data is used (the purposes)", r"purpose|we use (your|personal) (data|information)|why we"),
+    (DPO_ITEM, r"data protection officer|\bDPO\b"),
+    ("Why personal data is used (the purposes)",
+     r"purpose|we use (your|personal|this|the) (data|information)|why we|\band why\b|what (data|information) we "
+     r"collect|we (collect|use|process) [^.]{0,80}\bto (notify|send|contact|provide|process|respond|deliver|invite)"),
     ("The legal basis for each use", r"legal basis|lawful basis|legitimate interest|performance of a contract|your consent"),
     ("Who the data is shared with", r"recipient|third part|share|processor|service provider"),
     ("Transfers outside the EU and how they are protected", r"outside (the )?(EU|EEA|European)|international transfer|standard contractual|adequacy"),
@@ -362,7 +367,7 @@ def audit(browser: Any, urls: list[str], context_args: dict | None = None) -> Fi
 
     if notice_link and notice_text:
         items = notice_items(notice_text)
-        missing = [i for i, ok, _ in items if not ok]
+        missing = [i for i, ok, _ in items if not ok and i != DPO_ITEM]
         results.append(_result("privacy_notice_content", not missing,
                                "Mentions everything Art. 13 lists (a person still needs to check the wording)."
                                if not missing else f"Doesn't seem to mention: {'; '.join(missing)}."))
@@ -385,7 +390,8 @@ def audit(browser: Any, urls: list[str], context_args: dict | None = None) -> Fi
     ]
     if items:
         tables.append({"title": "What the privacy notice covers (GDPR Art. 13)", "columns": ["Item", "Mentioned?", "Words found"],
-                       "rows": [[i, "yes" if ok else "no", words] for i, ok, words in items],
+                       "rows": [[i, "yes" if ok else "not mentioned (only needed if you have a DPO)"
+                                 if i == DPO_ITEM else "no", words] for i, ok, words in items],
                        "note": "Found by looking for words, so a person still needs to read the notice."})
     if forms:
         tables.append({"title": "Forms that collect personal data", "columns":
