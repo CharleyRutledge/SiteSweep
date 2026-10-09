@@ -51,8 +51,12 @@ ABOUT = {
     "test_api_keeps_roles_apart": "One kind of user can't read another kind of user's data from the server.",
     "test_pages_load_quickly": "How long each page takes until it can be used, compared with the limit in the "
                                "settings (audit.load_budget_ms).",
-    "test_served_securely": "The site uses HTTPS (the padlock), sends visitors on plain http:// to HTTPS, and sends "
-                            "the security headers that protect visitors' browsers.",
+    "test_served_securely": "Safe security checks, done with ordinary requests anyone's browser makes (nothing "
+                            "attack-like): HTTPS and its certificate, the security headers that protect visitors' "
+                            "browsers, cookie protections, software versions given away, files loaded over plain "
+                            "http, private files (.git, .env) left public, browsable folders, and which other sites "
+                            "may read its data (CORS). Each result names the OWASP standard it comes from; SOC 2 "
+                            "and HIPAA controls are mapped, not assessed.",
     "test_pages_are_accessible": "Every page checked against the accessibility standard (WCAG 2.1 AA, required in "
                                  "the EU) for people using screen readers, keyboards, zoom or other aids. The "
                                  "issues, with fixes, are in the Accessibility section.",
@@ -357,37 +361,17 @@ def test_pages_load_quickly(audit: SiteMap, settings, request: pytest.FixtureReq
 
 
 def test_served_securely(site: BasePage, site_map: SiteMap, role: str, request: pytest.FixtureRequest) -> None:
-    home = site_map.home  # (left out of runs it does not apply to: see conftest._not_applicable)
-    problems: list[str] = []
-    host = urlparse(home).hostname
-    site.step("Check HTTPS and security headers")
-    if home.startswith("https://"):
-        try:
-            r = site.page.request.get(f"http://{host}/", max_redirects=5, fail_on_status_code=False, timeout=20_000)
-            if not r.url.startswith("https://"):
-                problems.append(f"http://{host}/ does not redirect to HTTPS (ended at {r.url})")
-        except PlaywrightError as exc:
-            problems.append(f"http://{host}/ could not be checked: {exc.message.splitlines()[0][:120]}")
-    else:
-        problems.append("the site is not served over HTTPS")
-    headers = {k.lower(): v for k, v in site.page.request.get(home, fail_on_status_code=False).headers.items()}
-    wanted = {
-        "strict-transport-security": "HSTS (keeps browsers on HTTPS)",
-        "x-content-type-options": "X-Content-Type-Options: nosniff",
-        "referrer-policy": "Referrer-Policy",
-    }
-    for header, label in wanted.items():
-        if header not in headers:
-            problems.append(f"missing {label} header")
-    if "content-security-policy" not in headers and "x-frame-options" not in headers:
-        problems.append("no clickjacking protection (Content-Security-Policy frame-ancestors or X-Frame-Options)")
-    rows = [["Uses HTTPS", "yes" if home.startswith("https://") else "no"]]
-    rows += [[label, "present" if header in headers else "missing"] for header, label in wanted.items()]
-    rows.append(["Clickjacking protection (CSP or X-Frame-Options)",
-                 "present" if "content-security-policy" in headers or "x-frame-options" in headers else "missing"])
-    evidence(request, "HTTPS and security headers of the home page", ["Check", "Result"], rows,
-             "; ".join(p for p in problems if p.startswith("http://")))
-    report(problems, "security finding(s)")
+    """Safe security checks (ui_automation/security.py): ordinary GET requests, nothing attack-like."""
+    from ui_automation import security
+
+    site.step("Check HTTPS, certificate, headers, cookies and well-known private files")
+    found = security.audit(site.page.request, site.page, site_map.home, [r.url for r in loaded(site_map)],
+                           api=[c.url for c in site_map.api if c.method == "GET"][:3],
+                           check_certificate=not accepts_self_signed(site.settings))
+    for table in found.tables:
+        evidence(request, table["title"], table["columns"], table["rows"], table["note"])
+    report([f"[{f.severity}] {f.title}: {f.detail} ({f.standards})" for f in found.findings if f.fails],
+           "security finding(s)")
 
 
 def test_pages_are_accessible(audit: SiteMap, settings, request: pytest.FixtureRequest) -> None:

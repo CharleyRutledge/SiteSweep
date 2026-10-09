@@ -41,8 +41,9 @@ Use the AskUserQuestion tool. Ask together:
      broken links or images, pages load quickly.
    - "Accessibility": WCAG 2.1 AA (EN 301 549), with the fix for each issue.
    - "Phones and screen sizes": no sideways scrolling at any screen size, and real phone profiles.
-   - "Security, logins and API": HTTPS and security headers, each role is refused pages it shouldn't see, and
-     the app's API answers correctly and keeps roles' data apart.
+   - "Security, logins and API": safe checks only (nothing attack-like): HTTPS and its certificate, security
+     headers, cookie protections, private files like `.git` or `.env` left public, CORS; each role is refused
+     pages it shouldn't see, and the app's API answers correctly and keeps roles' data apart.
 4. **Legal checks** (multiSelect):
    - "Irish/EU website requirements": privacy notice, cookie consent before tracking, accessibility statement,
      company and contact details, on the home page.
