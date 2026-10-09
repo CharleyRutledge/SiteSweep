@@ -96,3 +96,12 @@ def test_config_validation(tmp_path: Path, raw: dict, match: str) -> None:
     p.write_text(yaml.safe_dump({"base_url": "http://x", "compliance": raw}))
     with pytest.raises(ValueError, match=match):
         load_settings(p)
+
+
+def test_the_real_privacy_policy_is_chosen_over_a_loose_mention() -> None:
+    from ui_automation.compliance import PRIVACY_LINK, _find_link
+
+    links = [{"text": "GDPR for our partners", "href": "https://x.ie/gdpr-partners"},
+             {"text": "Privacy Policy", "href": "https://x.ie/privacy-policy"}]
+    assert _find_link(links, PRIVACY_LINK)["href"] == "https://x.ie/privacy-policy"
+    assert _find_link(links[:1], PRIVACY_LINK)["href"] == "https://x.ie/gdpr-partners"  # still found when alone

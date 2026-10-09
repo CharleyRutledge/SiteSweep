@@ -209,3 +209,28 @@ def test_the_site_audit_runs_them_and_reports_each_with_its_standard(tmp_path: P
     assert "hunter2" not in text and "hunter2" not in (run.run_dir / "summary.html").read_text(encoding="utf-8")
     assert t["about"].startswith("Safe security checks")
     assert [e["title"] for e in t["evidence"]][0] == "Security checks"
+
+
+def test_a_public_endpoint_that_repeats_any_origin_is_advice_not_high() -> None:
+    """WordPress's public REST API repeats any Origin and allows credentials; with no login cookie there is
+    nothing private to read, so it is low. With a login cookie it stays high."""
+    from ui_automation import security
+
+    class Reply:
+        headers = {"Access-Control-Allow-Origin": security.TEST_ORIGIN, "Access-Control-Allow-Credentials": "true"}
+
+    class Request:
+        def __init__(self, cookies: list) -> None:
+            self.cookies = cookies
+
+        def storage_state(self) -> dict:
+            return {"cookies": self.cookies}
+
+        def get(self, *a, **k):  # noqa: ANN002, ANN003, ANN201
+            return Reply()
+
+    public, private = security.Results(), security.Results()
+    security._cors(public, Request([]), "https://x.ie/", ["https://x.ie/wp-json/wp/v2/posts"])
+    security._cors(private, Request([{"name": "sid"}]), "https://x.ie/", [])
+    assert [f.severity for f in public.findings] == ["low"]
+    assert [f.severity for f in private.findings] == ["high"]

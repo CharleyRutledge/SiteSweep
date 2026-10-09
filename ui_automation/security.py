@@ -370,13 +370,22 @@ def _headers(out: Results, h: dict[str, str], secure: bool) -> None:
 
 def _cors(out: Results, request: Any, home: str, api: list[str]) -> None:
     worst, notes = "ok", []
+    try:  # with no cookie held, "with the visitor's login" can't apply: the answer is public to anyone anyway
+        has_login = bool(request.storage_state().get("cookies"))
+    except Exception:  # noqa: BLE001
+        has_login = True
     for url in [home, *api[:3]]:
         r = _get(request, url, headers={"Origin": TEST_ORIGIN})
         if r is None:
             continue
         h = {k.lower(): v for k, v in r.headers.items()}
         allow, creds = h.get("access-control-allow-origin", ""), h.get("access-control-allow-credentials", "")
-        if allow == TEST_ORIGIN and creds.lower() == "true":
+        public = "/wp-json/" in url or not has_login
+        if allow == TEST_ORIGIN and creds.lower() == "true" and public:
+            level, note = "low", ("repeats any website's address back and allows logins; it is public data here "
+                                  "(no login was needed), so nothing private is exposed, but allow only the sites "
+                                  "that need it")
+        elif allow == TEST_ORIGIN and creds.lower() == "true":
             level, note = "high", "lets any website read it with the visitor's login"
         elif allow == TEST_ORIGIN or allow == "null":
             level, note = "low", "lets any website read it (not with the visitor's login)"

@@ -247,3 +247,11 @@ def test_a_small_organisations_notice_without_a_dpo_passes() -> None:
 def test_ways_of_stating_the_purposes_are_recognised(text: str) -> None:
     item = dict((i, ok) for i, ok, _ in gdpr.notice_items(text))
     assert item["Why personal data is used (the purposes)"], text
+
+
+def test_a_legal_basis_written_as_contract_or_consent_is_recognised() -> None:
+    from ui_automation.gdpr import notice_items
+
+    basis = "The legal basis for each use"
+    assert dict((i, ok) for i, ok, _ in notice_items("We process data to Engage in Contract or Consent to communication."))[basis]
+    assert not dict((i, ok) for i, ok, _ in notice_items("We keep some information."))[basis]

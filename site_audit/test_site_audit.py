@@ -155,11 +155,20 @@ def test_every_page_loads_with_a_title_and_heading(audit: SiteMap, request: pyte
     report(problems, "page problem(s)")
 
 
+_BLOCKED_NOTE = (" (this page also couldn't load a file because this computer's network refused it; a script "
+                 "that is 'not defined' may be that file, so check it on a normal connection)")
+
+
+def _script_error(r, err: str) -> str:  # noqa: ANN001 - PageResult
+    blocked = any("refused by this computer's network" in e for e in r.network_errors)
+    return err + (_BLOCKED_NOTE if blocked and "not defined" in err else "")
+
+
 def test_no_javascript_errors(audit: SiteMap, request: pytest.FixtureRequest) -> None:
-    problems = [f"{short(r.url, audit.home)}: {err}" for r in loaded(audit) for err in r.js_errors]
+    problems = [f"{short(r.url, audit.home)}: {_script_error(r, err)}" for r in loaded(audit) for err in r.js_errors]
     show(request, audit, [r.url for r in loaded(audit) if r.js_errors])
     evidence(request, f"{len(problems)} script error(s) on {len(loaded(audit))} page(s) checked", ["Page", "Error"],
-             [[short(r.url, audit.home), err] for r in loaded(audit) for err in r.js_errors],
+             [[short(r.url, audit.home), _script_error(r, err)] for r in loaded(audit) for err in r.js_errors],
              "The screenshots show each page that had an error.")
     report(problems, "uncaught JavaScript error(s)")
 
@@ -416,7 +425,9 @@ def test_pages_are_accessible(audit: SiteMap, settings, request: pytest.FixtureR
     evidence(request, f"Issues per page ({len(pages)} page(s) checked)", ["Page", "Issues", "Most serious"],
              [[short(r.url, audit.home), str(len(r.accessibility)),
                max((v.impact for v in r.accessibility), key=_IMPACT.index, default="none")] for r in pages],
-             "Each issue, who it affects and how to fix it is in the Accessibility section.")
+             "Each issue, who it affects and how to fix it is in the Accessibility section."
+             + (" Issues are reported here but not enforced: accessibility.fail_on is 'none', so this check passes "
+                "whatever is found." if cfg.fail_on == "none" and any(r.accessibility for r in pages) else ""))
     report(failures, f"accessibility issue type(s) at or above '{cfg.fail_on}' (fixes are in the report)")
 
 

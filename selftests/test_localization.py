@@ -161,3 +161,10 @@ def test_the_site_audit_runs_it_and_reports_what_it_found(tmp_path) -> None:  # 
     assert "No translation keys or placeholders showing: " in text and "(W3C Internationalization" in text
     assert "Each language version is really translated: /ga/ (ga) is still in English" in text
     assert [e["title"] for e in t["evidence"]][:2] == ["Language of 3 page(s)", "3 other language version(s)"]
+
+
+def test_a_version_on_another_site_is_shown_in_full() -> None:
+    from ui_automation.localization import _where
+
+    assert _where("https://other.com/fr/", "https://x.ie/") == "https://other.com/fr/"
+    assert _where("https://x.ie/fr/", "https://x.ie/") == "/fr/"

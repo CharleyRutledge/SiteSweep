@@ -83,9 +83,19 @@ def _links(page: Any) -> list[dict[str, str]]:
     )
 
 
+PRIVACY_LINK = r"privacy|data protection|gdpr"
+_PRIVACY_BEST = re.compile(r"privacy\s+(policy|notice|statement)|data protection (policy|notice)", re.I)
+
+
 def _find_link(links: list[dict[str, str]], pattern: str) -> dict[str, str] | None:
+    """The best link for the pattern: for the privacy notice, one whose words or address say "privacy policy /
+    notice / statement" beats the first loose mention (a "GDPR" or "data protection" page about something else)."""
     rx = re.compile(pattern, re.I)
-    return next((l for l in links if rx.search(l["text"]) or rx.search(urlparse(l["href"]).path)), None)
+    found = [l for l in links if rx.search(l["text"]) or rx.search(urlparse(l["href"]).path)]
+    if pattern == PRIVACY_LINK:
+        found.sort(key=lambda l: 0 if _PRIVACY_BEST.search(l["text"]) else
+                   1 if _PRIVACY_BEST.search(urlparse(l["href"]).path.replace("-", " ").replace("_", " ")) else 2)
+    return found[0] if found else None
 
 
 def _reachable(page: Any, url: str) -> bool:
@@ -136,7 +146,7 @@ def check_page(page: Any, monitor: Monitor, checks: tuple[str, ...] = ALL_CHECKS
                                    if problems else "No tracking before consent."))
 
     if "privacy_notice" in checks:
-        results.append(_link_check(page, links, "privacy_notice", r"privacy|data protection|gdpr", "privacy notice"))
+        results.append(_link_check(page, links, "privacy_notice", PRIVACY_LINK, "privacy notice"))
     if "accessibility_statement" in checks:
         results.append(_link_check(page, links, "accessibility_statement", r"accessibility", "accessibility statement"))
     if "terms" in checks:
