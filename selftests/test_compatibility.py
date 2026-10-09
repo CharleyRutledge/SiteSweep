@@ -49,19 +49,21 @@ def test_runs_from_several_computers_get_a_column_each() -> None:
 
 def test_a_real_run_records_its_computer_and_browsers_and_shows_the_grid(tmp_path: Path) -> None:
     for url in _serve(CLEAN):
-        cfg = base_config(url, artifacts={"video": "off"}, browsers=["chromium", "webkit"], browser_rotation="off",
+        # Browsers and phones the CI machine has (Chromium and Firefox; no WebKit there).
+        cfg = base_config(url, artifacts={"video": "off"}, browsers=["chromium", "firefox"], browser_rotation="off",
                           audit={"max_pages": 2, "check_external_links": False,
-                                 "mobile_devices": ["Pixel 7", "iPhone 15"]})
+                                 "mobile_devices": ["Pixel 7", "Galaxy S9+"]})
         run = invoke_cli(tmp_path / "run", ["site_audit", "-k", "crawl or javascript or mobile"], config=cfg)
     data = json.loads((run.run_dir / "summary.json").read_text(encoding="utf-8"))
     env = data["environment"]
-    assert env["os"] and set(env["browsers"]) >= {"chromium", "webkit"}, env
-    assert all(v[0].isdigit() for v in env["browsers"].values()), env
+    assert env["os"] and "chromium" in env["browsers"], env
+    assert all(v[0].isdigit() for v in env["browsers"].values() if v), env  # Firefox's trusted profile: no version
+    assert "Firefox" in html_columns(run.run_dir), "a column for each browser that ran"
     html = (run.run_dir / "summary.html").read_text(encoding="utf-8")
     assert "<h2>Compatibility</h2>" in html and f"Chrome&#x27;s engine (Chromium) {env['browsers']['chromium']}" in html
     phones = next(e for t in data["tests"] for e in t["evidence"] if e["title"] == compat.PHONES_TITLE)
-    assert [r[0] for r in phones["rows"]] == ["Pixel 7", "iPhone 15"], phones
-    assert phones["rows"][1][1] == "Safari's engine (WebKit)"
+    assert [r[0] for r in phones["rows"]] == ["Pixel 7", "Galaxy S9+"], phones
+    assert phones["rows"][1][1] == "Chrome's engine (Chromium)"
 
     # The same site checked on another computer (its summary as that computer wrote it), combined into one grid.
     other = tmp_path / "mac"
@@ -72,6 +74,11 @@ def test_a_real_run_records_its_computer_and_browsers_and_shows_the_grid(tmp_pat
     assert compat.main([str(run.run_dir), str(other), "-o", str(out)]) == 0
     combined = out.read_text(encoding="utf-8")
     assert "on macOS 15.1" in combined and f"on {env['os']}" in combined
+
+
+def html_columns(run_dir: Path) -> str:
+    html = (run_dir / "summary.html").read_text(encoding="utf-8")
+    return html.split("<h2>Compatibility</h2>", 1)[1].split("</thead>", 1)[0]
 
 
 def test_the_grid_fits_a_small_phone(tmp_path: Path) -> None:
