@@ -390,11 +390,16 @@ def audit(server: dict, budget_ms: int = 2000) -> list[Check]:
             return list(checks.values())
         result = (init.body or {}).get("result") or {}
         if not result:
+            needs_login = init.status == 401 and not token
             err = (init.body or {}).get("error", {}).get("message") or f"HTTP {init.status} {init.raw[:120]}"
-            hand.problems.append(f"initialize didn't succeed: {err}")
+            if needs_login:  # refusing a caller with no login is right: the rest needs a token to check
+                hand.not_run = ("the server needs a login: put a token in an environment variable and name it "
+                                "with token_env (or --token-env)")
+            else:
+                hand.problems.append(f"initialize didn't succeed: {err}")
             for c in checks.values():
                 if c not in (hand, sec):
-                    c.not_run = "the handshake failed"
+                    c.not_run = hand.not_run or "the handshake failed"
             if isinstance(t, HttpTransport):
                 _security(sec, server, init, token)
             else:
@@ -539,6 +544,9 @@ def _security(c: Check, server: dict, init: Reply, token: str) -> None:
                 _oauth(c, rows, url, reply)
         except McpError as exc:
             rows.append(["Without a login", f"no answer ({exc})"])
+    elif init.status == 401:
+        rows.append(["Without a login", "refused (HTTP 401)"])
+        _oauth(c, rows, url, init)
     else:
         rows.append(["Without a login", "no token set (token_env), so this server was checked as a public one"])
     leaks = [f"{k}: {init.headers[k]}" for k in ("server", "x-powered-by")
