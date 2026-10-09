@@ -138,6 +138,13 @@ are mapped (the control a result is evidence for), not assessed: that needs an a
 
 This finds what is missing or left untranslated; it doesn't judge the quality of a translation.
 
+**Compatibility.** The report's Compatibility section is a grid of every check in every browser (Chrome's
+engine, Firefox, Safari's engine) with the operating system and browser versions used, and a table of the
+phones checked. Browsers run on the computer doing the test, so to cover another operating system, run
+SiteSweep there too (for a Mac, the Claude Desktop app) and combine the runs into one grid:
+
+    python -m ui_automation.reporting.compat reports/<run> reports/<run from the Mac> -o compatibility.html
+
 ## Audit any website
 
 `site_audit/` audits a whole site from its `base_url`. It finds the pages by following the site's own links,

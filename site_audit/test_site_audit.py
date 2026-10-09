@@ -272,12 +272,19 @@ def test_works_on_mobile_devices(audit: SiteMap, settings, playwright, run_dir, 
     if unusable:  # their browser can't work on this computer: listed under "Not run"
         devices = [d for d in devices if playwright.devices.get(d, {}).get("default_browser_type") not in unusable]
     print(f"Checked on: {', '.join(devices) or 'none (see Not run)'}")
+    from ui_automation.reporting.compat import BROWSERS, PHONES_TITLE
+
     problems: list[str] = []
+    phones: list[list[str]] = []
     for device in devices:
         found, gallery = check_on_device(playwright, settings, audit, device,
                                          run_dir / "screenshots" / f"mobile-{audit.role}")
         problems += found
+        engine = playwright.devices.get(device, {}).get("default_browser_type", "")
+        phones.append([device, BROWSERS.get(engine, engine or "unknown"), str(len(loaded(audit))), str(len(found)),
+                       "✕ failed" if found else "✓ passed"])
         request.node.step_screenshots.extend(gallery)
+    evidence(request, PHONES_TITLE, ["Phone", "Browser engine", "Pages", "Problems", "Result"], phones)
     evidence(request, f"{len(problems)} problem(s) on {', '.join(devices) or 'no phone'}", ["Problem"],
              [[p] for p in problems])
     report(problems, "mobile problem(s)")

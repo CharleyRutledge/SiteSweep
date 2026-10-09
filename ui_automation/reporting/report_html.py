@@ -114,10 +114,11 @@ table.evidence th, table.evidence td { text-align:left; padding:6px 8px; border-
   table.evidence, table.evidence tbody { display:block; }
   table.evidence tr { display:block; padding:6px 8px; border-bottom:1px solid var(--line); }
   table.evidence tr:last-child { border-bottom:none; }
-  table.evidence td { display:block; padding:2px 0; border:none; }
+  table.evidence td, table.evidence tbody th { display:block; padding:2px 0; border:none; background:none; }
   table.evidence td::before { content:attr(data-label) ": "; font-weight:600; color:var(--muted); }
 }
 table.evidence th { background:var(--code-bg); font-weight:600; }
+table.compat td.ok { color:var(--pass); } table.compat td.bad { color:var(--fail); font-weight:600; }
 table.evidence tr:last-child td { border-bottom:none; }
 .who { margin:6px 0 0; } .pages { margin:6px 0 0; font-size:13px; overflow-wrap:anywhere; }
 """
@@ -567,6 +568,9 @@ def render_summary_html(summary: RunSummary, ai_text: str | None = None) -> str:
 
     parts.append(_accessibility_section(summary))
     parts.append(_compliance_section(summary))
+    from ui_automation.reporting.compat import section as compatibility
+
+    parts.append(compatibility([(summary.environment, summary.tests)]))
 
     order_media = {"error": 0, "failed": 1, "passed": 2, "skipped": 3}
     with_media = [t for t in summary.tests if t.videos or t.screenshots or t.traces]
