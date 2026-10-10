@@ -83,9 +83,19 @@ def _links(page: Any) -> list[dict[str, str]]:
     )
 
 
+PRIVACY_LINK = r"privacy|data protection|gdpr"
+_PRIVACY_BEST = re.compile(r"privacy\s+(policy|notice|statement)|data protection (policy|notice)", re.I)
+
+
 def _find_link(links: list[dict[str, str]], pattern: str) -> dict[str, str] | None:
+    """The best link for the pattern: for the privacy notice, one whose words or address say "privacy policy /
+    notice / statement" beats the first loose mention (a "GDPR" or "data protection" page about something else)."""
     rx = re.compile(pattern, re.I)
-    return next((l for l in links if rx.search(l["text"]) or rx.search(urlparse(l["href"]).path)), None)
+    found = [l for l in links if rx.search(l["text"]) or rx.search(urlparse(l["href"]).path)]
+    if pattern == PRIVACY_LINK:
+        found.sort(key=lambda l: 0 if _PRIVACY_BEST.search(l["text"]) else
+                   1 if _PRIVACY_BEST.search(urlparse(l["href"]).path.replace("-", " ").replace("_", " ")) else 2)
+    return found[0] if found else None
 
 
 def _reachable(page: Any, url: str) -> bool:
@@ -103,6 +113,30 @@ def _link_check(page: Any, links: list[dict[str, str]], check: str, pattern: str
     if not _reachable(page, link["href"]):
         return CheckResult(check, False, f"The {what} link ({link['href']}) does not load.")
     return CheckResult(check, True, f"Linked as \"{link['text'] or link['href']}\" and loads.")
+
+
+def _statement_in_help_pages(page: Any, links: list[dict[str, str]]) -> CheckResult | None:
+    """Many sites put the statement inside an FAQ or support page rather than linking it by name. Read the few
+    pages that usually hold it (same site only, no clicks) before saying it is missing."""
+    host = urlparse(page.url).hostname
+    wanted = re.compile(r"faq|support|help|about|contact|legal|compliance|policies", re.I)
+    pages = list(dict.fromkeys(l["href"] for l in links if urlparse(l["href"]).hostname == host
+                               and (wanted.search(l["text"]) or wanted.search(urlparse(l["href"]).path))))[:5]
+    other = page.context.new_page()
+    try:
+        for url in pages:
+            try:
+                other.goto(url, wait_until="load", timeout=30_000)
+                if re.search(r"accessibility\s+statement", other.inner_text("body"), re.I):
+                    return CheckResult("accessibility_statement", True,
+                                       f"An accessibility statement is on {url}, but no link on this page is named "
+                                       "for it. Add a clear \"Accessibility statement\" link in the footer so it is "
+                                       "easy to find (a person should open it and check its content).")
+            except Exception:  # noqa: BLE001 - a page that won't open is skipped
+                continue
+    finally:
+        other.close()
+    return None
 
 
 def check_page(page: Any, monitor: Monitor, checks: tuple[str, ...] = ALL_CHECKS) -> list[CheckResult]:
@@ -136,9 +170,12 @@ def check_page(page: Any, monitor: Monitor, checks: tuple[str, ...] = ALL_CHECKS
                                    if problems else "No tracking before consent."))
 
     if "privacy_notice" in checks:
-        results.append(_link_check(page, links, "privacy_notice", r"privacy|data protection|gdpr", "privacy notice"))
+        results.append(_link_check(page, links, "privacy_notice", PRIVACY_LINK, "privacy notice"))
     if "accessibility_statement" in checks:
-        results.append(_link_check(page, links, "accessibility_statement", r"accessibility", "accessibility statement"))
+        result = _link_check(page, links, "accessibility_statement", r"accessibility", "accessibility statement")
+        if not result.passed and result.detail.startswith("No link"):
+            result = _statement_in_help_pages(page, links) or result
+        results.append(result)
     if "terms" in checks:
         results.append(_link_check(page, links, "terms", r"terms|conditions", "terms and conditions page"))
 

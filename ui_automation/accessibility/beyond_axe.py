@@ -33,12 +33,16 @@ FOCUS_JS = """() => {
     const label = """ + _LABEL_JS + """;
     const look = e => { const s = getComputedStyle(e); return [s.outlineStyle, s.outlineWidth, s.outlineColor, s.boxShadow,
         s.borderTopColor, s.borderBottomColor, s.borderBottomWidth, s.backgroundColor, s.color, s.textDecorationLine].join('|'); };
+    // A style that fades in would still read as "unchanged" the instant after focus: measure without transitions.
+    const kept = el.style.getPropertyValue('transition'), keptPriority = el.style.getPropertyPriority('transition');
+    el.style.setProperty('transition', 'none', 'important');
     const s = getComputedStyle(el);
     const outline = s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0;
     const focused = look(el);
     el.blur();
     const plain = look(el);
     el.focus({preventScroll: true});
+    if (kept) el.style.setProperty('transition', kept, keptPriority); else el.style.removeProperty('transition');
     let path = [], e = el;
     while (e && e !== document.body) { path.unshift(e.tagName + ':' + [...(e.parentElement || document.body).children].indexOf(e)); e = e.parentElement; }
     return {key: path.join('/'), label: label(el) + ' "' + (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 30) + '"',
@@ -84,12 +88,13 @@ PAGE_JS = """() => {
     const label = """ + _LABEL_JS + """;
     const shown = el => el.getClientRects().length > 0;
     const vague = /^(image|img|picture|photo|graphic|icon|banner|untitled|spacer|alt|null|undefined|-|\\s*)$/i;
-    const alt = [];
+    const alt = [], longAlt = [];
     for (const img of document.querySelectorAll('img[alt]')) {
         const a = img.getAttribute('alt').trim(), file = (img.getAttribute('src') || '').split(/[?#]/)[0].split('/').pop();
         if (!a || !shown(img)) continue;  // alt="" is right for decoration
-        if (vague.test(a) || /\\.(png|jpe?g|gif|svg|webp|avif)$/i.test(a) || (file && a === file) || a.length > 150)
+        if (vague.test(a) || /\\.(png|jpe?g|gif|svg|webp|avif)$/i.test(a) || (file && a === file) )
             alt.push(label(img) + ' alt="' + a.slice(0, 60) + '"');
+        else if (a.length > 150) longAlt.push(label(img) + ' alt="' + a.slice(0, 60) + '..." (' + a.length + ' characters)');
     }
     // A silent video (muted, with a written description of what it shows) has nothing to caption (WCAG 1.2.1).
     const silent = v => v.hasAttribute('muted') && v.getAttribute('aria-describedby');
@@ -107,7 +112,7 @@ PAGE_JS = """() => {
     const skips = [];
     headings.forEach((h, i) => { const lvl = +h.tagName[1], prev = i ? +headings[i - 1].tagName[1] : 0;
         if (prev && lvl > prev + 1) skips.push('h' + prev + ' then ' + label(h) + ' "' + h.innerText.trim().slice(0, 30) + '"'); });
-    return {alt: alt.slice(0, 5), captions: captions.slice(0, 5), refresh: refresh ? refresh.getAttribute('content') : '',
+    return {alt: alt.slice(0, 5), longAlt: longAlt.slice(0, 5), captions: captions.slice(0, 5), refresh: refresh ? refresh.getAttribute('content') : '',
             moving: pause ? [] : [...new Set(moving)].slice(0, 5), skips: skips.slice(0, 5)};
 }"""
 
@@ -226,6 +231,10 @@ def page_checks(page: Any) -> list[Violation]:
                                 "non-text-content", r["alt"],
                                 "Describe what the image shows or does (e.g. alt=\"Bar chart of sales by month\"), "
                                 "or use alt=\"\" if it is only decoration."))
+    if r["longAlt"]:
+        found.append(_violation("alt-long", "minor", "Alt text that is very long", "1.1.1", "non-text-content",
+                                r["longAlt"], "This alt text does describe the image but runs past 150 characters. Keep "
+                                              "alt short and put the longer description in the page text."))
     if r["captions"]:
         found.append(_violation("video-captions", "serious", "Video without captions", "1.2.2", "captions-prerecorded",
                                 r["captions"], "Add <track kind=\"captions\" src=\"captions.vtt\" srclang=\"en\"> "

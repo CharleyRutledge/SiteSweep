@@ -27,6 +27,9 @@ Use the AskUserQuestion tool. Ask together:
 
 1. **What to test.** Offer:
    - "A website": then ask for its address (a plain `example.ie` is fine: add `https://`).
+     If they chose a website but gave no address (or only a name, or a blank answer), do not guess one, reuse an
+     earlier one or start the audit: ask again, in these words: "You chose a website but didn't give its address.
+     What address should I test (for example example.ie)?" Carry on only once you have an address.
    - In a cloud session also: "An app on my computer (localhost)". If they pick it, or give a `localhost`,
      `127.0.0.1`, `192.168.x.x` or `*.local` address, don't try to run it: show the message from step 3's check
      (Desktop app or `claude remote-control`) and stop there.

@@ -10,9 +10,13 @@ from pathlib import Path
 
 from ui_automation.reporting.summary import RunSummary, TestResult
 
-# The report travels as one file (Telegram's limit is 50 MB, many mail servers stop at ~25 MB),
-# so media is embedded until this budget is used; anything beyond it is linked to the CI run.
-_EMBED_BUDGET_BYTES = 18 * 1024 * 1024
+# The report travels as one file and is read on phones, which have to parse all of it before showing anything:
+# an 18 MB page (mostly traces) was slow and unresponsive. Screenshots and videos are what people look at, so
+# they are embedded up to this budget; Playwright traces (often several MB each, and only useful on a computer)
+# are embedded only when small, and otherwise named so they can be found in the run folder.
+_EMBED_BUDGET_BYTES = 6 * 1024 * 1024
+_TRACE_MAX_BYTES = 1024 * 1024  # one embedded trace
+_TRACE_BUDGET_BYTES = 2 * 1024 * 1024  # all embedded traces together
 _MIME = {".png": "image/png", ".jpg": "image/jpeg", ".mp4": "video/mp4", ".webm": "video/webm", ".zip": "application/zip"}
 
 _CSS = """
@@ -184,7 +188,9 @@ class _Embedder:
     def __init__(self, run_dir: Path | None, budget: int = _EMBED_BUDGET_BYTES) -> None:
         self.run_dir = run_dir
         self.remaining = budget
+        self.trace_remaining = _TRACE_BUDGET_BYTES
         self.skipped = 0
+        self.traces_left_out: list[str] = []  # traces too big to embed (named in the report instead)
 
     def resolve(self, path: str) -> Path:
         p = Path(path)
@@ -225,6 +231,13 @@ class _Embedder:
         )
 
     def download(self, path: str, filename: str, label: str) -> str:
+        p = self.resolve(path)
+        if p.is_file():
+            size = p.stat().st_size
+            if size > _TRACE_MAX_BYTES or size * 4 // 3 > self.trace_remaining:
+                self.traces_left_out.append(f"{p.name} ({size / 1024 / 1024:.1f} MB)")
+                return ""
+            self.trace_remaining -= size * 4 // 3
         src = self.uri(path)
         return f'<a class="btn" download="{escape(filename)}" href="{src}">{escape(label)}</a>' if src else ""
 
@@ -356,6 +369,13 @@ def _media_card(test: TestResult, media: _Embedder, run_name: str) -> str:
                 f'<div class="sub">Trace</div>{link}'
                 '<div class="file">Open it at <a href="https://trace.playwright.dev">trace.playwright.dev</a> '
                 "to replay every action, network call and console message.</div>"
+            )
+        elif media.traces_left_out and Path(trace).name in media.traces_left_out[-1]:
+            parts.append(
+                '<div class="sub">Trace</div><div class="file">Too big to put in this page ('
+                f'{escape(media.traces_left_out[-1].split(" ", 1)[1].strip("()"))}): '
+                f'{escape(str(media.resolve(trace)))}. Open it at <a href="https://trace.playwright.dev">'
+                "trace.playwright.dev</a> on a computer.</div>"
             )
     parts.append("</div>")
     return "".join(parts)
@@ -607,6 +627,9 @@ def render_summary_html(summary: RunSummary, ai_text: str | None = None) -> str:
     ]
     if media.skipped:
         foot.append(f"{media.skipped} file(s) were too large to include in this report; they are in the CI run.")
+    if media.traces_left_out:
+        foot.append(f"{len(media.traces_left_out)} trace file(s) were left out to keep this page quick to open on a "
+                    "phone; they are in the run's traces folder.")
     if summary.run_url:
         foot.append(f'Full report, videos and traces: <a href="{escape(summary.run_url)}">CI run</a>')
     elif summary.run_dir:

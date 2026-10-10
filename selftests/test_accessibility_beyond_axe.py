@@ -155,3 +155,17 @@ def test_text_spacing_works_under_a_strict_content_security_policy(page: Page) -
     page.route("http://csp.test/**", serve)
     page.goto("http://csp.test/")
     assert [v.rule for v in text_spacing(page)] == ["text-spacing"]
+
+
+def test_a_long_description_is_advice_not_meaningless_alt(page: Page) -> None:
+    long_alt = "A detailed photo of the harbour at dawn with boats " * 4
+    page.set_content(f'<main><h1>x</h1><img src="a.png" alt="{long_alt}"></main>')
+    found = {v.rule: v for v in page_checks(page)}
+    assert "alt-meaningless" not in found
+    assert found["alt-long"].impact == "minor"
+
+
+def test_a_focus_style_that_fades_in_is_still_seen(page: Page) -> None:
+    page.set_content('<style>a{transition:all 5s;background:#fff;color:#000;outline:0}a:focus{background:#000;color:#fff}'
+                     '</style><main><h1>x</h1><a href="#x">Fading focus</a></main>')
+    assert "focus-visible" not in rules(check(page))

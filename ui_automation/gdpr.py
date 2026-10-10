@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
-from ui_automation.compliance import TRACKER_HOSTS, TRACKING_COOKIE, CheckResult, _find_link, _links
+from ui_automation.compliance import PRIVACY_LINK, TRACKER_HOSTS, TRACKING_COOKIE, CheckResult, _find_link, _links
 from ui_automation.local import is_local
 
 LAW = {
@@ -76,7 +76,8 @@ NOTICE_ITEMS = [
     ("Why personal data is used (the purposes)",
      r"purpose|we use (your|personal|this|the) (data|information)|why we|\band why\b|what (data|information) we "
      r"collect|we (collect|use|process) [^.]{0,80}\bto (notify|send|contact|provide|process|respond|deliver|invite)"),
-    ("The legal basis for each use", r"legal basis|lawful basis|legitimate interest|performance of a contract|your consent"),
+    ("The legal basis for each use", r"legal basis|lawful basis|legitimate interest|performance of a contract|(contract|you|your)[^.]{0,40}consent|consent to|"
+     r"on the basis of"),
     ("Who the data is shared with", r"recipient|third part|share|processor|service provider"),
     ("Transfers outside the EU and how they are protected", r"outside (the )?(EU|EEA|European)|international transfer|standard contractual|adequacy"),
     ("How long the data is kept", r"retain|retention|how long|kept for|period"),
@@ -284,7 +285,7 @@ def audit(browser: Any, urls: list[str], context_args: dict | None = None) -> Fi
     first.wait_for_timeout(1500)
     shown = banner(first)
     links = _links(first)
-    notice_link = _find_link(links, r"privacy|data protection|gdpr")
+    notice_link = _find_link(links, PRIVACY_LINK)
     notice_text = ""
     if notice_link:
         try:
@@ -296,7 +297,7 @@ def audit(browser: Any, urls: list[str], context_args: dict | None = None) -> Fi
     for url in urls:
         try:
             first.goto(url, wait_until="load", timeout=30_000)
-            has_notice = bool(_find_link(_links(first), r"privacy|data protection|gdpr"))
+            has_notice = bool(_find_link(_links(first), PRIVACY_LINK))
             # An app on this computer has no HTTPS: that is checked on the deployed site (as "Served securely").
             forms += [{**f, "page": url, "notice": has_notice,
                        "https": local or (first.url.startswith("https://") and f["action"].startswith("https://"))}
@@ -330,7 +331,7 @@ def audit(browser: Any, urls: list[str], context_args: dict | None = None) -> Fi
     has_banner = bool(shown["accept"] or shown["reject"])
     if not has_banner:
         reject_detail = ("No cookie banner found. That is fine only if the site sets nothing that needs consent "
-                         "(see the first check).")
+                         "(see the first check). A banner shown only to visitors in some countries can't be seen from here.")
         reject_ok = not early
     elif not shown["reject"]:
         reject_detail = f"The banner offers \"{shown['accept']}\" but no reject button on the same screen."
@@ -369,8 +370,9 @@ def audit(browser: Any, urls: list[str], context_args: dict | None = None) -> Fi
         items = notice_items(notice_text)
         missing = [i for i, ok, _ in items if not ok and i != DPO_ITEM]
         results.append(_result("privacy_notice_content", not missing,
-                               "Mentions everything Art. 13 lists (a person still needs to check the wording)."
-                               if not missing else f"Doesn't seem to mention: {'; '.join(missing)}."))
+                               f"Read {notice_link['href']}. Mentions everything Art. 13 lists (a person still needs to check the "
+                               "wording)." if not missing else f"Read {notice_link['href']}. Doesn't seem to mention: "
+                               f"{'; '.join(missing)}."))
     else:
         items = []
         results.append(_result("privacy_notice_content", False, "No privacy notice found to check."))

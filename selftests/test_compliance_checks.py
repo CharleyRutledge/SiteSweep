@@ -96,3 +96,55 @@ def test_config_validation(tmp_path: Path, raw: dict, match: str) -> None:
     p.write_text(yaml.safe_dump({"base_url": "http://x", "compliance": raw}))
     with pytest.raises(ValueError, match=match):
         load_settings(p)
+
+
+def test_the_real_privacy_policy_is_chosen_over_a_loose_mention() -> None:
+    from ui_automation.compliance import PRIVACY_LINK, _find_link
+
+    links = [{"text": "GDPR for our partners", "href": "https://x.ie/gdpr-partners"},
+             {"text": "Privacy Policy", "href": "https://x.ie/privacy-policy"}]
+    assert _find_link(links, PRIVACY_LINK)["href"] == "https://x.ie/privacy-policy"
+    assert _find_link(links[:1], PRIVACY_LINK)["href"] == "https://x.ie/gdpr-partners"  # still found when alone
+
+
+def test_an_accessibility_statement_inside_the_faq_page_is_found() -> None:
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from playwright.sync_api import sync_playwright
+
+    from playwright.sync_api import sync_playwright
+
+    from ui_automation.compliance import _links, _statement_in_help_pages
+
+    pages = {"/": '<a href="/faqs/">FAQs</a><a href="/about/">About</a>', "/faqs/": "<h2>Accessibility Statement for app</h2>",
+             "/about/": "<p>Nothing here</p>"}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            body = pages.get(self.path, "").encode()
+            self.send_response(200 if self.path in pages else 404)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a) -> None:  # noqa: ANN002
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{server.server_port}"
+        with sync_playwright() as pw:  # its own, closed here: a shared sync Playwright leaves a loop for later tests
+            browser = pw.chromium.launch()
+            page = browser.new_context().new_page()
+            page.goto(base + "/")
+            found = _statement_in_help_pages(page, _links(page))
+            assert found and found.passed and "/faqs/" in found.detail and "Add a clear" in found.detail
+            pages["/faqs/"] = "<p>Questions</p>"
+            assert _statement_in_help_pages(page, _links(page)) is None  # absent everywhere: still missing
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()

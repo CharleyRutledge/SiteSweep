@@ -139,6 +139,11 @@ def _short(url: str) -> str:
     return (p.path or "/") + (f"?{p.query}" if p.query else "")
 
 
+def _where(url: str, home: str) -> str:
+    """A version on another site is shown in full: its bare path ("/") would read as this site's home page."""
+    return url if urlparse(url).netloc != urlparse(home).netloc else _short(url)
+
+
 def _add(out: Results, check: str, passed: bool, detail: str) -> None:
     out.findings.append(Finding(check, passed, detail, TITLES[check], GUIDES[check]))
 
@@ -223,20 +228,29 @@ def _versions(out: Results, page: Any, request: Any, home: str, info: dict, max_
         problems.append(f"not valid language codes: {', '.join(bad)}")
     if not any(a["href"].rstrip("/") == home.rstrip("/") for a in alternates):
         problems.append("the page doesn't list itself among its language versions")
-    version_rows, untranslated, too_wide = [], [], []
+    version_rows, untranslated, too_wide, not_checked = [], [], [], []
     home_lang = info["lang"].split("-")[0].lower()
     for alt in alternates[:max_versions]:
         if alt["href"].rstrip("/") == home.rstrip("/") or alt["lang"] == "x-default":
             continue
         status = ""
         try:
-            status = str(request.get(alt["href"], fail_on_status_code=False, timeout=15_000).status)
+            reply = request.get(alt["href"], fail_on_status_code=False, timeout=15_000)
+            status = str(reply.status)
+            if reply.status == 403 and "text/plain" in reply.headers.get("content-type", "") \
+                    and reply.text()[:200].startswith("request blocked:"):
+                status = "refused"  # written by this computer's network (a cloud session's allowlist), not the site
         except Exception:  # noqa: BLE001
             status = "no answer"
+        if status == "refused":
+            not_checked.append(_where(alt["href"], home))
+            version_rows.append([alt["lang"], _where(alt["href"], home), "not checked: this network refuses it",
+                                 "", "", "", ""])
+            continue
         other = _open(page, alt["href"]) if status.isdigit() and int(status) < 400 else None
         if other is None:
-            problems.append(f"{alt['lang']} version {_short(alt['href'])} doesn't open (HTTP {status})")
-            version_rows.append([alt["lang"], _short(alt["href"]), status, "", "", "", ""])
+            problems.append(f"{alt['lang']} version {_where(alt['href'], home)} doesn't open (HTTP {status})")
+            version_rows.append([alt["lang"], _where(alt["href"], home), status, "", "", "", ""])
             continue
         links_back = any(a["href"].rstrip("/") == home.rstrip("/") for a in other["hreflang"])
         if not links_back:
@@ -250,11 +264,12 @@ def _versions(out: Results, page: Any, request: Any, home: str, info: dict, max_
         wide = _width_at_phone(page, alt["href"])
         if wide > 0:
             too_wide.append(f"{_short(alt['href'])} needs {wide}px sideways scrolling at 375px")
-        version_rows.append([alt["lang"], _short(alt["href"]), status, other["lang"] or "not set",
+        version_rows.append([alt["lang"], _where(alt["href"], home), status, other["lang"] or "not set",
                              NAMES.get(detected, detected) or "too little text", "yes" if links_back else "no",
                              f"{wide}px too wide" if wide > 0 else "fits"])
     _add(out, "hreflang", not problems, "; ".join(problems) if problems else
-         f"{len(alternates)} language version(s) listed; each opens and links back.")
+         f"{len(alternates)} language version(s) listed; each opens and links back."
+         + (f" Not checked (this computer's network refuses them): {', '.join(not_checked)}." if not_checked else ""))
     _add(out, "translated", not untranslated, "; ".join(untranslated) if untranslated else
          "Each language version's text is in its own language (where there was enough text to tell).")
     _add(out, "switcher", bool(switch_links), f"Language links on the page: "

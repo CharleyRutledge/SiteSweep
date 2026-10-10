@@ -304,3 +304,15 @@ def test_every_check_explains_itself_and_records_what_it_found(tmp_path: Path) -
     assert speed["evidence"][0]["columns"] == ["Page", "Usable after", "Within the limit?"]
     assert {row[0] for row in speed["evidence"][0]["rows"]} >= {"/"}  # every page's time, even when all are fast
     assert all(row[1].endswith(" s") for row in speed["evidence"][0]["rows"])
+
+
+def test_script_errors_are_explained_when_this_network_refused_a_file() -> None:
+    from types import SimpleNamespace
+
+    from site_audit.test_site_audit import _script_error
+
+    blocked = SimpleNamespace(network_errors=["GET https://unpkg.com/swiper.js: HTTP 403: refused by this computer's network, not by the site"])
+    clear = SimpleNamespace(network_errors=[])
+    assert "refused it" in _script_error(blocked, "Swiper is not defined")
+    assert _script_error(clear, "Swiper is not defined") == "Swiper is not defined"
+    assert _script_error(blocked, "Unexpected token") == "Unexpected token"

@@ -179,3 +179,16 @@ def test_report_stays_within_budget_with_huge_media(tmp_path: Path) -> None:
     assert len(html) < _EMBED_BUDGET_BYTES + 1_000_000, "stays under the Telegram/email-safe budget"
     assert "too large to include" in html
     assert elapsed < 10
+
+
+def test_big_traces_are_left_out_so_the_page_opens_on_a_phone(tmp_path: Path) -> None:
+    """A Playwright trace zip can be many MB; embedded, it made reports 18 MB and unusable on a phone."""
+    s, _ = make_summary(tmp_path / "run", failures=3, passed=0)
+    for i, t in enumerate(s.tests):
+        trace = tmp_path / "run" / f"trace{i}.zip"
+        trace.write_bytes(os.urandom(3_000_000 if i == 0 else 400_000))
+        t.traces = [str(trace.name)]
+    html = render_summary_html(s)
+    assert len(html) < 3_500_000, len(html)
+    assert "Too big to put in this page (2.9 MB)" in html
+    assert "1 trace file(s) were left out" in html or "trace file(s) were left out" in html

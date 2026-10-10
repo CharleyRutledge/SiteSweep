@@ -37,3 +37,8 @@ def test_each_question_offers_at_most_four_options() -> None:
         block = re.split(r"\n\d\. \*\*|\n\n", text.split(f"\n{number}. **", 1)[1], maxsplit=1)[0]
         options = re.findall(r'^   - "', block, flags=re.M)
         assert 2 <= len(options) <= 4, (number, len(options))
+
+
+def test_a_website_chosen_without_an_address_is_asked_for_again() -> None:
+    text = (REPO / ".claude" / "skills" / "test" / "SKILL.md").read_text(encoding="utf-8")
+    assert "You chose a website but didn't give its address. What address should I test (for example example.ie)?" in " ".join(text.split())
