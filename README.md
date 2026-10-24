@@ -67,6 +67,27 @@ In each case `/test` pulls the latest code and updates the packages. It then off
 `config/private/` (logins come from `.env`), and every browser installs itself the first time. The report opens on
 your computer, and is sent to the chat too when you follow along from another device.
 
+## Open in OpenCode
+
+[![Open in OpenCode](https://img.shields.io/badge/Open%20in%20OpenCode-test%20a%20site-0f1115?style=for-the-badge&logo=gnometerminal&logoColor=white)](https://opencode.ai/docs/)
+
+OpenCode runs on your computer (terminal, desktop app or IDE extension), so there is no link that starts a session
+for you; the button opens its install page. Once it is installed, one command is enough:
+
+```powershell
+git clone https://github.com/CharleyRutledge/SiteSweep.git; cd SiteSweep; python -m pip install -r requirements.txt; opencode
+```
+
+The first time, run `/connect` to pick a model provider. OpenCode reads `AGENTS.md`, and it loads skills from
+`.claude/skills` as well as from its own folder, so the three workflows above work unchanged. Just say what you
+want, for example:
+
+```text
+Follow the test skill in .claude/skills/test: ask me what to test, run the site audit with SiteSweep and explain the report in plain language.
+```
+
+Nothing is forked or pushed: SiteSweep stays a folder on your computer.
+
 ## Quick start (without Claude)
 
 ```powershell

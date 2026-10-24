@@ -1,6 +1,6 @@
 ---
 name: test
-description: Get the latest code, ask what to test (a website or a settings file, which browsers), run the site audit and explain the report in plain language. Started by the "Open in Claude" links in the README.
+description: Get the latest code, ask what to test (a website or a settings file, which browsers), run the site audit and explain the report in plain language. Started by the "Open in Claude" and "Open in OpenCode" buttons in the README.
 ---
 
 # Test a website or app with SiteSweep
