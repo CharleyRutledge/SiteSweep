@@ -43,4 +43,5 @@ Then carry on with what they asked.
 - Before reporting a failure on a real site or server, check it against what the site actually sends: a check
   can be wrong. Fix SiteSweep when it is, and say which findings were real.
 - Self-tests: `python -m pytest -c selftests/pytest.ini selftests -n auto`.
+  Push CI runs only `selftests/fast` (no browser, seconds); the full suite runs by hand in Actions, "Full self-tests".
 - Never commit passwords, tokens or `.env`. Settings for private apps belong in `config/private/` (git-ignored).

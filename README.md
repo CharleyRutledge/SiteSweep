@@ -11,7 +11,6 @@ Created by [Charley Rutledge](https://github.com/CharleyRutledge). Built with Py
 and pytest, with optional summaries by Claude.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/charleyrutledge)
 
 ## Open in Claude
 
@@ -293,10 +292,10 @@ as a warning on a green run (the report is the result); the run fails only when 
 could not run.
 
 **Nothing runs on its own.** No suite is scheduled, and none that visits a website or sends a report
-runs on push. The site audit, the practice sites, the browser suite and the load and live
-checks only run when you start them in **Actions** (the site audit only with the URL you type). The
-self-tests and security scan still run on every push and pull request; they use local test servers and
-send nothing.
+runs on push. The site audit, the practice sites, the browser suite, the full self-test suite and the
+load and live checks only run when you start them in **Actions** (the site audit only with the URL you
+type). Only the fast self-tests and the `bandit` scan run on every push and pull request: about 160
+tests in `selftests/fast/`, with no browser and no network, so they finish in seconds.
 
 ## Test behind a login, with roles
 
@@ -386,13 +385,20 @@ TLS, login), and local stand-ins for the Telegram and Anthropic APIs, used for t
 (401/429/500, timeouts, broken replies) the real services cannot produce on demand.
 
 While working on one feature, run just its tests (much quicker), e.g.
-`python -m pytest -c selftests/pytest.ini selftests/test_gdpr.py`; CI runs them all on every pull request.
+`python -m pytest -c selftests/pytest.ini selftests/test_gdpr.py`.
+
+`selftests/fast/` holds the tests that need no browser: settings, reports, the licence, the skills and the
+workflow policy. They run on every push and pull request (about 20 seconds in Actions) and locally in
+about 3 seconds.
 
 ```powershell
+python -m pip install -r requirements-fast.txt
+python -m pytest -c selftests/pytest.ini selftests/fast          # every push and pull request in CI (~2 s locally)
+
 python -m pip install -r requirements-dev.txt
-python -m pytest -c selftests/pytest.ini selftests -n auto    # every push and pull request in CI (~6 min on 4 cores)
-python -m pytest -c selftests/pytest.ini selftests -m load -s # by hand (Actions -> Extended tests): load / performance numbers
-python -m pytest -c selftests/pytest.ini selftests -m live    # by hand (Actions -> Extended tests): real Claude + Telegram
+python -m pytest -c selftests/pytest.ini selftests -n auto        # every test, by hand (Actions -> Full self-tests)
+python -m pytest -c selftests/pytest.ini selftests -m load -s     # by hand (Actions -> Extended tests): load / performance numbers
+python -m pytest -c selftests/pytest.ini selftests -m live        # by hand (Actions -> Extended tests): real Claude + Telegram
 ```
 
 | Area | What is covered |
@@ -511,7 +517,7 @@ SiteSweep/
                            # gdpr.py, security.py, localization.py, reliability.py, mcp_audit.py
   selftests/               # the framework's own tests
   .claude/                 # /test, /test-mcp and /reliability, and cloud session setup
-  .github/                 # workflows (all started by hand), Dependabot, Sponsor button
+  .github/                 # workflows (only the fast self-tests run on push), Dependabot
   LICENSE, NOTICE          # Apache License 2.0 and the attribution notice
   AGENTS.md, CLAUDE.md     # instructions for AI assistants
 ```
@@ -555,11 +561,3 @@ based on it:
 
 AI assistants working in a copy of SiteSweep are told the same in [`AGENTS.md`](AGENTS.md) and
 [`CLAUDE.md`](CLAUDE.md): they mention the creator and the licence when they start, and keep the credit in place.
-
-## Support this project
-
-If SiteSweep saves you time, you can support its development with a small donation:
-
-**[Buy Me a Coffee](https://buymeacoffee.com/charleyrutledge)**
-
-You can also use the **Sponsor** button at the top of this repository.

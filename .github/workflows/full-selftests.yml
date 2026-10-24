@@ -1,0 +1,42 @@
+name: Full self-tests
+
+# Every self-test, including the ones that drive real browsers and local servers. Only runs when
+# started by hand (Actions -> Full self-tests -> Run workflow): no schedule, no runs on push.
+# The push/pull-request lane is the fast subset (ui-tests.yml), which needs no browser.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          # Firefox too: the self-tests check that an audit runs in more than one browser.
+          python -m playwright install --with-deps chromium firefox
+          # certutil: the self-tests check Firefox with a profile that trusts a test certificate authority.
+          sudo apt-get install -y --no-install-recommends ffmpeg libnss3-tools
+
+      - name: Self-tests
+        # -n auto: one worker per CPU core (each test starts its own servers on free ports and works in its own
+        # temporary folder, so they run side by side safely).
+        run: python -m pytest -c selftests/pytest.ini selftests -p no:cacheprovider -n auto
+
+      # Moved off push (it needs the whole stack installed and a vulnerability database download).
+      - name: Known vulnerabilities in dependencies (pip-audit)
+        if: always()
+        run: pip-audit -r requirements-ui.txt --progress-spinner off

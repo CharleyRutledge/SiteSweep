@@ -6,7 +6,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 CREATOR = "Charley Rutledge"
 HOME = "https://github.com/CharleyRutledge/SiteSweep"
 
@@ -17,7 +17,9 @@ def text(name: str) -> str:
 
 def test_the_licence_is_the_unchanged_apache_2_text() -> None:
     # The checksum of https://www.apache.org/licenses/LICENSE-2.0.txt: GitHub recognises it as Apache-2.0.
-    assert hashlib.md5((REPO / "LICENSE").read_bytes()).hexdigest() == "3b83ef96387f14655fc854ddc3c6bd57"  # nosec B324
+    # A Windows checkout with core.autocrlf=true writes CRLF; that is not a change to the licence text.
+    data = (REPO / "LICENSE").read_bytes().replace(b"\r\n", b"\n")
+    assert hashlib.md5(data).hexdigest() == "3b83ef96387f14655fc854ddc3c6bd57"  # nosec B324
 
 
 def test_the_notice_credits_the_creator() -> None:

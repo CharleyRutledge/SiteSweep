@@ -1,0 +1,6 @@
+# The push/pull-request CI lane (selftests/fast): no browser, no network.
+# Keep this a small subset of requirements-dev.txt; the full suite and the scanners that need the
+# whole stack run in "Full self-tests" (Actions -> Full self-tests -> Run workflow).
+pytest>=8.0.0,<10
+PyYAML>=6.0.1,<7
+bandit>=1.7,<2

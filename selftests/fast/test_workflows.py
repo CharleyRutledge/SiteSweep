@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-WORKFLOWS = Path(__file__).resolve().parents[1] / ".github" / "workflows"
+WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 SECRETS_THAT_REPORT = ("TELEGRAM_BOT_TOKEN", "EMAIL_SMTP_PASSWORD", "ANTHROPIC_API_KEY")
 
 

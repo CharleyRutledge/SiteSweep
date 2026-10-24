@@ -9,7 +9,7 @@ import yaml
 
 from ui_automation.config import load_settings
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 
 
 def load(tmp_path: Path, text: str):
