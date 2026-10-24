@@ -35,7 +35,7 @@ jobs:
           cache-dependency-path: requirements-fast.txt
 
       # No "pip install --upgrade pip": setup-python's pip is current, and these tests need only
-      # pytest, pytest-xdist, PyYAML and bandit (requirements-fast.txt) to stay under a minute.
+      # pytest, PyYAML, bandit and requests (requirements-fast.txt) to stay under a minute.
       - name: Install dependencies
         run: python -m pip install -r requirements-fast.txt
 

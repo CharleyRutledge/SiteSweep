@@ -13,6 +13,7 @@ import pytest
 
 from harness import CliRun, base_config, invoke_cli
 from test_gdpr import NOTICE
+from ui_automation.config import load_settings
 
 
 def _page(title: str, body: str) -> str:
@@ -316,3 +317,18 @@ def test_script_errors_are_explained_when_this_network_refused_a_file() -> None:
     assert "refused it" in _script_error(blocked, "Swiper is not defined")
     assert _script_error(clear, "Swiper is not defined") == "Swiper is not defined"
     assert _script_error(blocked, "Unexpected token") == "Unexpected token"
+
+
+def test_site_wide_checks_run_in_todays_browser(tmp_path: Path) -> None:
+    """With browsers taking turns, the once-per-site checks run in whichever browser today's run uses."""
+    from site_audit.conftest import _not_applicable
+
+    cfg = tmp_path / "s.yaml"
+    cfg.write_text("base_url: http://x\naudit:\n  security_checks: on\n", encoding="utf-8")
+    s = load_settings(cfg)
+    for today in ("chromium", "firefox", "webkit"):
+        for check in ("test_no_broken_links", "test_served_securely", "test_works_on_mobile_devices"):
+            assert _not_applicable(check, "public", s, today, today) == "-", (check, today)
+    # with --all-browsers: once, in the first browser of the run
+    assert _not_applicable("test_no_broken_links", "public", s, "firefox", "chromium") == ""
+    assert _not_applicable("test_pages_are_accessible", "public", s, "firefox", "chromium") == "-"

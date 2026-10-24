@@ -4,3 +4,5 @@
 pytest>=8.0.0,<10
 PyYAML>=6.0.1,<7
 bandit>=1.7,<2
+# Imported when the report tests touch ui_automation.reporting (its __init__ loads the notifiers).
+requests>=2.32.0,<3
