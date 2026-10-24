@@ -500,7 +500,7 @@ def _load_compliance(raw: Mapping[str, Any] | None) -> ComplianceSettings:
     return ComplianceSettings(
         enabled=_as_bool(raw.get("enabled"), True, "compliance.enabled"),
         report_only=_as_bool(raw.get("report_only"), False, "compliance.report_only"),
-        pages=_pages(raw.get("pages") or ["/"], "compliance.pages"),
+        pages=_pages(raw.get("pages") if raw.get("pages") is not None else ["/"], "compliance.pages"),
         checks=checks,
         gdpr=_as_bool(raw.get("gdpr"), True, "compliance.gdpr"),
         gdpr_pages=_as_int(raw.get("gdpr_pages"), 3, "compliance.gdpr_pages", minimum=1),
@@ -515,7 +515,7 @@ def _load_accessibility(raw: Mapping[str, Any] | None) -> AccessibilitySettings:
     fail_on = str(raw.get("fail_on") or "serious").lower()
     if fail_on not in _A11Y_FAIL_ON:
         raise ValueError(f"settings.yaml: accessibility.fail_on must be one of {_A11Y_FAIL_ON}")
-    pages = _pages(raw.get("pages") or ["/"], "accessibility.pages")
+    pages = _pages(raw.get("pages") if raw.get("pages") is not None else ["/"], "accessibility.pages")
     return AccessibilitySettings(
         enabled=_as_bool(raw.get("enabled"), True, "accessibility.enabled"),
         standard=standard,
