@@ -51,6 +51,10 @@ button.tile[aria-pressed="true"], button.chip[aria-pressed="true"] { outline:2px
 button.chip { font:inherit; font-size:13px; color:var(--text); background:var(--card); border:1px solid var(--line);
               border-radius:999px; padding:4px 12px; min-height:32px; cursor:pointer; }
 .filter-status { color:var(--muted); font-size:13px; margin:-8px 0 12px; }
+.jump { margin:-4px 0 14px; }
+.jump ol { margin:0; padding-left:20px; }
+.jump li { margin:4px 0; overflow-wrap:anywhere; }
+a.back { display:inline-block; margin-top:12px; font-size:13px; }
 [data-hidden] { display:none !important; }
 h2 { font-size:16px; margin:20px 0 8px; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
@@ -306,7 +310,7 @@ def _problems(test: TestResult) -> str:
     return "".join(f"<li>{escape(x)}</li>" for x in lines)
 
 
-def _failure_card(test: TestResult, media: _Embedder) -> str:
+def _failure_card(test: TestResult, media: _Embedder, anchor: str = "", back: bool = False) -> str:
     if test.failure_screenshots:
         shot, caption = media.img(test.failure_screenshots[-1], "Screen when the test failed"), "Screen when it failed:"
     elif test.screenshots:
@@ -328,11 +332,14 @@ def _failure_card(test: TestResult, media: _Embedder) -> str:
         f'<div class="step">Stopped at step: <b>{escape(test.last_step)}</b></div>' if test.last_step else ""
     )
     shot_note = f'<div class="file">{caption}</div>' if shot else ""
+    to_top = (f'<a class="back" href="#top" aria-label="Back to top: {escape(test.title)}">Back to top</a>'
+              if back else "")
     return (
-        f'<div class="card fail"{_filter_attrs(test)}><div class="name">{escape(test.title)}{_variant(test)}</div>'
+        f'<div class="card fail"{f" id={chr(34)}{anchor}{chr(34)}" if anchor else ""}{_filter_attrs(test)}>'
+        f'<div class="name">{escape(test.title)}{_variant(test)}</div>'
         f'<div class="file">{escape(test.file)} · {label} after {_fmt_duration(test.duration)}</div>'
         f"{listed}{_evidence(test)}{'' if test.evidence else step}"
-        f"{shot_note}{shot}{details}</div>"
+        f"{shot_note}{shot}{details}{to_top}</div>"
     )
 
 
@@ -559,6 +566,12 @@ def render_summary_html(summary: RunSummary, ai_text: str | None = None) -> str:
     else:
         bad = summary.failed + summary.errors
         line = f"{bad} of {summary.total} tests failed. Details below."
+        # The first thing a reader wants: which checks failed, in plain words.
+        names = [t.title for t in summary.problems]
+        if names:
+            shown = ", ".join(names[:3])
+            more = f" and {len(names) - 3} more" if len(names) > 3 else ""
+            line = f"{bad} of {summary.total} tests failed: {shown}{more}. Details below."
     when = _local_time()
     meta = [when, f"took {_fmt_duration(summary.duration)}"]
     if summary.base_url:
@@ -581,8 +594,18 @@ def render_summary_html(summary: RunSummary, ai_text: str | None = None) -> str:
     media = _Embedder(summary.run_dir)
     problems = summary.problems
     if problems:
-        parts.append("<h2>What failed</h2>")
-        parts.extend(_failure_card(t, media) for t in problems)
+        parts.append('<h2 id="what-failed">What failed</h2>')
+        if len(problems) > 1:
+            # A short list at the top: jump straight to one failure, however long the page gets.
+            jump = "".join(
+                f'<li><a href="#problem-{i}">{escape(t.title)}'
+                f'{f" ({escape(t.variant)})" if t.variant else ""}</a></li>'
+                for i, t in enumerate(problems, 1)
+            )
+            parts.append(f'<nav class="jump" aria-label="Failed checks"><ol>{jump}</ol></nav>')
+        back_to_top = len(problems) > 2
+        parts.extend(_failure_card(t, media, f"problem-{i}", back_to_top)
+                     for i, t in enumerate(problems, 1))
     if ai_text:
         parts.append(f'<h2>Claude\'s analysis</h2><div class="card ai">{escape(ai_text)}</div>')
 
@@ -616,6 +639,25 @@ def render_summary_html(summary: RunSummary, ai_text: str | None = None) -> str:
         )
     parts.append(f'<h2>All tests ({summary.total})</h2><div class="card"><ul class="tests">{"".join(rows)}</ul></div>')
 
+    # Where the time went: the few slowest checks, when the run was long enough for it to matter.
+    slowest = sorted((t for t in summary.tests if t.duration > 0), key=lambda t: -t.duration)[:5]
+    if len(slowest) > 2 and summary.duration >= 30:
+        body = "".join(
+            f'<tr><td data-label="Check">{escape(t.title)}{_variant(t)}</td>'
+            f'<td data-label="Time">{_fmt_duration(t.duration)}</td></tr>'
+            for t in slowest
+        )
+        parts.append(
+            '<details><summary>Where the time went (slowest checks)</summary>'
+            '<div class="table-wrap" tabindex="0" role="region" aria-label="Slowest checks">'
+            '<table class="evidence"><caption class="sr-only">Slowest checks</caption>'
+            '<thead><tr><th scope="col">Check</th><th scope="col">Time</th></tr></thead>'
+            f"<tbody>{body}</tbody></table></div>"
+            '<p class="file">A check far slower than the rest is usually waiting on a slow page or request. '
+            "The audit's limits are <code>audit.load_budget_ms</code> and <code>audit.api_budget_ms</code>.</p>"
+            "</details>"
+        )
+
     trace_note = {
         "retain-on-failure": "traces are kept only for failed tests",
         "off": "tracing is off",
@@ -641,5 +683,5 @@ def render_summary_html(summary: RunSummary, ai_text: str | None = None) -> str:
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f'<meta http-equiv="Content-Security-Policy" content="{_CSP}">'
         f"<title>{escape(summary.name) + ': ' if summary.name else 'UI tests: '}{title}</title><style>{_CSS}</style></head>"
-        f"<body><main>{''.join(parts)}</main><script>{_COPY_JS}</script></body></html>"
+        f"<body><main id=\"top\">{''.join(parts)}</main><script>{_COPY_JS}</script></body></html>"
     )

@@ -14,6 +14,7 @@ import hashlib
 import os
 import re
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urldefrag, urlparse
@@ -321,16 +322,18 @@ def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_
         return not area or path == area or path.startswith(area.rstrip("/") + "/")
 
     first = normalise(start or home)
-    queue, seen = [first], {first}
+    # A deque: pages come off the front as fast as they go on the back, however large the site.
+    queue, seen = deque([first]), {first}
     for url in extra:
-        if normalise(url) not in seen:
-            seen.add(normalise(url))
-            queue.append(normalise(url))
+        key = normalise(url)
+        if key not in seen:
+            seen.add(key)
+            queue.append(key)
     visited = 0
     try:
         while queue and visited < max_pages:
             visited += 1
-            url = queue.pop(0)
+            url = queue.popleft()
             result = PageResult(url)
             js_errors.clear()
             network_errors.clear()

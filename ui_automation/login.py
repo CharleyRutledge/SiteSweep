@@ -72,13 +72,13 @@ def _submit(page: Page, auth: AuthSettings, near: Locator) -> None:
         return
     form_buttons = near.locator("xpath=ancestor::form[1]").locator("button, input[type='submit']")
     try:
-        if form_buttons.count():
-            for i in range(form_buttons.count()):
-                b = form_buttons.nth(i)
-                if b.is_visible() and (SUBMIT_NAMES.search(b.inner_text() or b.get_attribute("value") or "")
-                                       or (b.get_attribute("type") or "").lower() == "submit"):
-                    b.click()
-                    return
+        total = form_buttons.count()  # one round-trip to the browser, not one per button
+        for i in range(total):
+            b = form_buttons.nth(i)
+            if b.is_visible() and (SUBMIT_NAMES.search(b.inner_text() or b.get_attribute("value") or "")
+                                   or (b.get_attribute("type") or "").lower() == "submit"):
+                b.click()
+                return
     except PlaywrightError:
         pass
     named = page.get_by_role("button", name=SUBMIT_NAMES)

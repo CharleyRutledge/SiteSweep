@@ -27,6 +27,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -473,7 +474,7 @@ def _lists(c: Check, client: Client, result: dict) -> list[dict]:
         rows.append([name, (tool.get("description") or "")[:120], ", ".join((schema or {}).get("properties", {}))
                      if isinstance(schema, dict) else "", "; ".join(issues) or "fine"])
     names = [t.get("name") for t in tools]
-    dupes = sorted({n for n in names if names.count(n) > 1})
+    dupes = sorted((n for n, count in Counter(names).items() if count > 1), key=str)  # one pass, not one per name
     if dupes:
         c.problems.append(f"tools listed twice: {', '.join(map(str, dupes))}")
     if "tools" in caps:

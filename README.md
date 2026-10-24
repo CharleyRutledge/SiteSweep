@@ -82,10 +82,10 @@ The browsers it needs install themselves on the first run, and `--open` opens th
 
 | Path | Contents |
 |------|----------|
-| `reports/<timestamp>/summary.html` | The plain-language report: what each check means, what it found (evidence tables), fixes, the compatibility grid, website requirements and GDPR |
+| `reports/<timestamp>/summary.html` | The plain-language report: the failed checks named at the top with a link to each one, what each check means, what it found (evidence tables), fixes, the compatibility grid, website requirements and GDPR, and where the time went |
 | `reports/<timestamp>/summary.json` | The same results as data (also lists what was not run and why) |
 | `reports/<timestamp>/report.html` | The detailed report ("SiteSweep detailed report", pytest-html), with embedded step screenshots; corrected after each run to meet WCAG 2.2 AA |
-| `reports/latest/report.html` | Copy of the last run |
+| `reports/latest/` | A copy of the last run: `report.html`, `summary.html`, `summary.json` and `claude_summary.txt` (a link to it always opens the newest run) |
 | `reports/<timestamp>/summary.html` (on a phone) | Fits a 320px screen; it is what Telegram and email send, with videos, screenshots and traces embedded |
 | `reports/<timestamp>/videos/` | Recordings per browser test: `.webm`, plus `.mp4` when `ffmpeg` is installed (plays on iPhone) |
 | `reports/<timestamp>/screenshots/` | A screenshot per test step |
