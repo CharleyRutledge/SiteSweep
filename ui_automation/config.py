@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import re
 from dataclasses import dataclass, field
@@ -233,7 +234,7 @@ def _as_seconds(value: Any, default: float, name: str) -> float:
         number = float(value)
     except (TypeError, ValueError):
         raise ValueError(f"settings.yaml: {name} must be a number of seconds, got {value!r}") from None
-    if not number > 0:
+    if not math.isfinite(number) or not number > 0:
         raise ValueError(f"settings.yaml: {name} must be > 0, got {number}")
     return number
 
@@ -241,10 +242,29 @@ def _as_seconds(value: Any, default: float, name: str) -> float:
 def _as_int(value: Any, default: int, name: str, *, minimum: int = 0) -> int:
     if value is None:
         return default
-    try:
-        number = int(str(value).strip()) if isinstance(value, str) else int(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"settings.yaml: {name} must be an integer, got {value!r}") from None
+    if isinstance(value, bool):
+        number = int(value)
+    elif isinstance(value, float):
+        if not math.isfinite(value) or value != int(value):
+            raise ValueError(f"settings.yaml: {name} must be an integer, got {value!r}")
+        number = int(value)
+    elif isinstance(value, str):
+        text = value.strip()
+        try:
+            number = int(text)
+        except ValueError:
+            try:
+                floated = float(text)
+            except (TypeError, ValueError):
+                raise ValueError(f"settings.yaml: {name} must be an integer, got {value!r}") from None
+            if not math.isfinite(floated) or floated != int(floated):
+                raise ValueError(f"settings.yaml: {name} must be an integer, got {value!r}") from None
+            number = int(floated)
+    else:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"settings.yaml: {name} must be an integer, got {value!r}") from None
     if number < minimum:
         raise ValueError(f"settings.yaml: {name} must be >= {minimum}, got {number}")
     return number
@@ -285,7 +305,16 @@ def _load_telegram(raw: Mapping[str, Any] | None) -> TelegramSettings:
 def _normalize_artifact_flag(value: Any, default: str) -> str:
     if isinstance(value, bool):
         return "on" if value else "off"
-    return str(value or default).lower()
+    if value is None:
+        return str(default).lower()
+    text = str(value).strip().lower()
+    if not text:
+        return str(default).lower()
+    if text in _TRUE:
+        return "on"
+    if text in _FALSE:
+        return "off"
+    return text
 
 
 def _load_artifacts(raw: Mapping[str, Any] | None) -> ArtifactSettings:
@@ -471,7 +500,7 @@ def _load_compliance(raw: Mapping[str, Any] | None) -> ComplianceSettings:
     return ComplianceSettings(
         enabled=_as_bool(raw.get("enabled"), True, "compliance.enabled"),
         report_only=_as_bool(raw.get("report_only"), False, "compliance.report_only"),
-        pages=_pages(raw.get("pages", ["/"]), "compliance.pages"),
+        pages=_pages(raw.get("pages") or ["/"], "compliance.pages"),
         checks=checks,
         gdpr=_as_bool(raw.get("gdpr"), True, "compliance.gdpr"),
         gdpr_pages=_as_int(raw.get("gdpr_pages"), 3, "compliance.gdpr_pages", minimum=1),
@@ -486,7 +515,7 @@ def _load_accessibility(raw: Mapping[str, Any] | None) -> AccessibilitySettings:
     fail_on = str(raw.get("fail_on") or "serious").lower()
     if fail_on not in _A11Y_FAIL_ON:
         raise ValueError(f"settings.yaml: accessibility.fail_on must be one of {_A11Y_FAIL_ON}")
-    pages = _pages(raw.get("pages", ["/"]), "accessibility.pages")
+    pages = _pages(raw.get("pages") or ["/"], "accessibility.pages")
     return AccessibilitySettings(
         enabled=_as_bool(raw.get("enabled"), True, "accessibility.enabled"),
         standard=standard,
@@ -517,10 +546,12 @@ def load_settings(path: str | Path | None = None) -> Settings:
     )
     try:
         parsed = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{cfg_path}: not valid UTF-8 ({exc})") from None
     except yaml.YAMLError as exc:
         raise ValueError(f"{cfg_path}: not valid YAML ({exc})".replace("\n", " ")) from None
     raw = resolve_env(parsed)
-    m = _as_mapping(raw)
+    m = _as_mapping(raw, str(cfg_path))
 
     # WEB_UI_URL (set by `python -m ui_automation --url ...`) tests that site instead of the file's base_url;
     # the run is then named after it too, not after the site the file was written for.

@@ -8,6 +8,6 @@ from pathlib import Path
 def link(path: Path | str) -> str:
     """file:///C:/Users/... for a file or folder: terminals show it as a link that opens it."""
     try:
-        return Path(path).resolve().as_uri()
-    except (OSError, ValueError):
+        return Path(str(path)).resolve().as_uri()
+    except (OSError, ValueError, TypeError):
         return str(path)

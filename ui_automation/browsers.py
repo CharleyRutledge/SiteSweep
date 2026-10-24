@@ -80,7 +80,11 @@ def ensure_browsers(names: list[str]) -> str:
     if not missing:
         return ""
     print(f"Installing {', '.join(missing)} for this run (a one-time download) ...", flush=True)
-    done = subprocess.run([sys.executable, "-m", "playwright", "install", *missing], check=False)
+    try:
+        done = subprocess.run([sys.executable, "-m", "playwright", "install", *missing], check=False, timeout=600)
+    except subprocess.TimeoutExpired:
+        return (f"Could not install {', '.join(missing)}: the installer timed out after 10 minutes. "
+                f"Run: python -m playwright install {' '.join(missing)}")
     if done.returncode == 0:
         return ""
     stand_in = preinstalled_chromium() if "chromium" in missing else ""
@@ -122,7 +126,10 @@ def _try(name: str, url: str) -> str:
             message = str(exc)
             return message if any(e in message for e in _CERT_ERRORS) else ""  # anything else is the site's to report
         finally:
-            browser.close()
+            try:
+                browser.close()
+            except Exception:  # noqa: BLE001 - don't mask the real result
+                pass
     return ""
 
 
@@ -144,8 +151,13 @@ def usable_browsers(names: list[str], url: str) -> tuple[list[str], list[str]]:
             profile = build_profile()
             if profile:
                 os.environ[ENV] = profile  # read again by the test run (conftest.py, site audit)
-                problem = _try(name, url)
-                if problem:
+                try:
+                    problem = _try(name, url)
+                except Exception:  # noqa: BLE001
+                    if ENV in os.environ:
+                        del os.environ[ENV]
+                    raise
+                if problem and ENV in os.environ:
                     del os.environ[ENV]
         label = _NAMES.get(name, name)
         if not problem:
@@ -155,7 +167,7 @@ def usable_browsers(names: list[str], url: str) -> tuple[list[str], list[str]]:
                            f"(run: sudo python -m playwright install-deps {name})")
         elif any(e in problem for e in _CERT_ERRORS):
             fix = (" (install certutil so it can be given this computer's list: sudo apt-get install libnss3-tools)"
-                   if name == "firefox" and not shutil.which("certutil") else
+                   if name == "firefox" and not (shutil.which("certutil") or shutil.which("certutil.exe")) else
                    " (it works on a computer without that proxy, e.g. your own)")
             why_not.append(f"{label}: it doesn't trust the certificate of this computer's network proxy, so it can't "
                            f"open HTTPS sites here{fix}")
@@ -192,6 +204,7 @@ def device_engines(devices: list[str]) -> list[str]:
         return []
     try:
         with sync_playwright() as p:
-            return list(dict.fromkeys(p.devices[d]["default_browser_type"] for d in devices if d in p.devices))
+            return list(dict.fromkeys(p.devices[d].get("default_browser_type") for d in devices
+                                     if d in p.devices and p.devices[d].get("default_browser_type")))
     except PlaywrightError:
         return []

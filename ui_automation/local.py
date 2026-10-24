@@ -108,7 +108,13 @@ class AppServer:
         else:
             kwargs["start_new_session"] = True  # its own process group: npm -> node -> ... all stop together
         # The user's own start command (like an npm script), run on their machine: a shell is what they expect.
-        self.process = subprocess.Popen(self.command, shell=True, **kwargs)  # noqa: S602  # nosec B602
+        try:
+            self.process = subprocess.Popen(self.command, shell=True, **kwargs)  # noqa: S602  # nosec B602
+        except (OSError, ValueError):
+            if self._log_file is not None:
+                self._log_file.close()
+                self._log_file = None
+            raise
         self._started = True
         started = time.monotonic()
         deadline = started + self.timeout

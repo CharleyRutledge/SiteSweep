@@ -56,26 +56,31 @@ def replay(playwright: Playwright, settings: Settings, call: ApiCall, *, as_site
         token = next((c.auth for c in as_site.api if c.auth and urlparse(c.url).netloc == urlparse(call.url).netloc), "")
         if token:
             headers["authorization"] = token
-    context = playwright.request.new_context(
-        proxy=proxy_settings(),
-        ignore_https_errors=accepts_self_signed(settings),
-        storage_state=as_site.state if as_site is not None else None,
-        extra_http_headers=headers or None,
-    )
+    context = None
     try:
+        context = playwright.request.new_context(
+            proxy=proxy_settings(),
+            ignore_https_errors=accepts_self_signed(settings),
+            storage_state=as_site.state if as_site is not None else None,
+            extra_http_headers=headers or None,
+        )
         r = context.get(call.url, max_redirects=0, fail_on_status_code=False, timeout=min(settings.timeout_ms, 20_000))
         same = r.ok and hashlib.sha256(r.body()).hexdigest() == call.body_hash
         return Replay(r.status, same)
     except PlaywrightError as exc:
         return Replay(0, False, exc.message.splitlines()[0][:120])
     finally:
-        context.dispose()
+        if context is not None:
+            try:
+                context.dispose()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def is_public(call: ApiCall, settings: Settings, public: SiteMap | None) -> bool:
     """Meant to work without logging in: listed in audit.public_api, or called by the logged-out visitor."""
     p = path(call.url)
-    if any(p == x or p.startswith(x.rstrip("/") + "/") or re.fullmatch(x.replace("*", ".*"), p)
+    if any(p == x or p.startswith(x.rstrip("/") + "/") or re.fullmatch(re.escape(x).replace(r"\*", ".*"), p)
            for x in settings.audit.public_api):
         return True
     return public is not None and any(path(c.url) == p for c in public.api)

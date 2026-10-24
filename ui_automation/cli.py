@@ -93,22 +93,27 @@ def publish_latest_report(run_dir: Path, reports_dir: Path) -> Path:
     reports_dir.mkdir(parents=True, exist_ok=True)
     token = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
     staging = reports_dir / f".latest-staging-{token}"
-    staging.mkdir()
-    for name in _LATEST_FILES:
-        if (run_dir / name).is_file():
-            shutil.copy2(run_dir / name, staging / name)
-    for folder in _LATEST_DIRS:
-        if (run_dir / folder).is_dir():
-            shutil.copytree(run_dir / folder, staging / folder)
-
-    latest = reports_dir / "latest"
     retired = reports_dir / f".latest-old-{token}"
-    with _dir_lock(reports_dir / ".latest.lock"):
-        if latest.exists():
-            os.replace(latest, retired)
-        os.replace(staging, latest)
-    shutil.rmtree(retired, ignore_errors=True)
-    return latest / "report.html"
+    staging.mkdir()
+    try:
+        for name in _LATEST_FILES:
+            if (run_dir / name).is_file():
+                shutil.copy2(run_dir / name, staging / name)
+        for folder in _LATEST_DIRS:
+            if (run_dir / folder).is_dir():
+                shutil.copytree(run_dir / folder, staging / folder)
+
+        latest = reports_dir / "latest"
+        with _dir_lock(reports_dir / ".latest.lock"):
+            if latest.exists():
+                os.replace(latest, retired)
+            os.replace(staging, latest)
+        shutil.rmtree(retired, ignore_errors=True)
+        return (reports_dir / "latest") / "report.html"
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(retired, ignore_errors=True)
+        raise
 
 
 def open_report(path: Path) -> None:
@@ -311,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
     from ui_automation.browsers import device_engines
 
     # The mobile devices' browsers are needed only when the site audit runs.
-    audit_run = any("site_audit" in a for a in pytest_args)
+    audit_run = (not pytest_args) or any("site_audit" in a for a in pytest_args)
     devices = browsers_for_run(list(settings.audit.mobile_devices), settings.browser_rotation) if audit_run else []
     engines = device_engines(devices)
     problem = ensure_browsers(wanted + engines)
@@ -338,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
     reports_dir = reports_root(root)
     try:
         run_dir = new_run_dir(reports_dir)
-    except OSError as exc:
+    except (OSError, RuntimeError) as exc:
         print(f"Cannot create a run folder under {reports_dir}: {exc}", file=sys.stderr)
         return 2
     playwright_output = run_dir / "playwright-output"
@@ -384,6 +389,13 @@ def main(argv: list[str] | None = None) -> int:
             server.stop()
             print("\nStopped: interrupted while waiting for the app (it has been shut down again).", file=sys.stderr)
             return 130
+        except Exception as exc:  # noqa: BLE001
+            try:
+                server.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            print(f"Could not start the app: {exc}", file=sys.stderr)
+            return 2
         if problem:
             print(f"Could not start the app: {problem}", file=sys.stderr)
             if server.stop_problem:
@@ -405,17 +417,26 @@ def main(argv: list[str] | None = None) -> int:
     from ui_automation.reporting.full_report import make_accessible
     from ui_automation.reporting.pipeline import notify_run
 
-    make_accessible(html_report)  # pytest-html's page, corrected to WCAG 2.2 AA like the rest of the reports
-
-    notify_run(run_dir, settings)
-
-    latest_report = publish_latest_report(run_dir, reports_dir)
-    print(f"Latest report copy: {link(latest_report)}")
+    try:
+        make_accessible(html_report)  # pytest-html's page, corrected to WCAG 2.2 AA like the rest of the reports
+    except Exception as exc:  # noqa: BLE001
+        print(f"Could not correct the report for accessibility: {exc}", file=sys.stderr)
+    try:
+        notify_run(run_dir, settings)
+    except Exception as exc:  # noqa: BLE001
+        print(f"Could not send notifications: {exc}", file=sys.stderr)
+    latest_report = None
+    try:
+        latest_report = publish_latest_report(run_dir, reports_dir)
+        print(f"Latest report copy: {link(latest_report)}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Could not publish the latest report copy: {exc}", file=sys.stderr)
 
     # The clear one-page summary (the same one Telegram/email get); the full pytest report as a fallback.
-    summary_page = latest_report.with_name("summary.html")
-    if args.open and (summary_page.is_file() or latest_report.is_file()):
-        open_report(summary_page if summary_page.is_file() else latest_report)
+    if latest_report is not None:
+        summary_page = latest_report.with_name("summary.html")
+        if args.open and (summary_page.is_file() or latest_report.is_file()):
+            open_report(summary_page if summary_page.is_file() else latest_report)
 
     return exit_code
 

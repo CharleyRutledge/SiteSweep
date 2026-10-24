@@ -33,7 +33,7 @@ def load_dotenv(path: Path) -> list[str]:
     """
     try:
         text = path.read_text(encoding="utf-8-sig")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return []
     loaded = []
     for line in text.splitlines():
@@ -43,10 +43,18 @@ def load_dotenv(path: Path) -> list[str]:
         if not m:
             continue
         key, value = m.group(1), m.group(2)
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-            value = value[1:-1]
-        elif " #" in value:
-            value = value.split(" #", 1)[0].rstrip()  # trailing comment on an unquoted value
+        # A quoted value takes precedence and ignores any trailing comment.
+        if len(value) >= 1 and value[0] in "\"'":
+            quote = value[0]
+            end = value.find(quote, 1)
+            if end != -1:
+                value = value[1:end]
+            else:
+                value = value[1:]
+        else:
+            # Strip a trailing comment on an unquoted value.
+            if " #" in value:
+                value = value.split(" #", 1)[0].rstrip()
         if key not in os.environ:
             os.environ[key] = value
             loaded.append(key)

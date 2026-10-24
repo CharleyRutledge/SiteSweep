@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import subprocess
 import tempfile
 from pathlib import Path
@@ -36,6 +37,10 @@ def certificate_bundle() -> str:
 def build_profile() -> str:
     """A Firefox profile folder that trusts every authority in the computer's bundle; '' when that can't be made
     (no bundle, or no certutil: on Debian/Ubuntu it comes with libnss3-tools)."""
+    # The NSS certutil (libnss3-tools) is what can build a Firefox trust store; the
+    # certutil.exe that ships with Windows is a different tool and cannot.
+    if sys.platform == "win32":
+        return ""
     bundle, certutil = certificate_bundle(), shutil.which("certutil")
     if not bundle or not certutil:
         return ""

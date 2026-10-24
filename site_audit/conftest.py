@@ -52,7 +52,7 @@ STABLE_JS = """() => new Promise(resolve => {
     let quiet;
     const done = () => { observer.disconnect(); clearTimeout(quiet); resolve(true); };
     const observer = new MutationObserver(() => { clearTimeout(quiet); quiet = setTimeout(done, 500); });
-    observer.observe(document.documentElement, {childList: true, subtree: true, characterData: true});
+    observer.observe(document.documentElement, {childList: true, subtree: true, characterData: true, attributes: true});
     quiet = setTimeout(done, 500);
     setTimeout(done, 5000);
 })"""
@@ -251,6 +251,8 @@ def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_
     `already_checked` pages (seen by the logged-out visitor) are not opened again."""
     site = SiteMap(home=home)
     viewport = {"width": settings.viewport_width, "height": settings.viewport_height} if settings else None
+    context = None
+    page = None
     context = browser.new_context(ignore_https_errors=self_signed_ok, viewport=viewport, storage_state=storage_state)
     page = context.new_page()
     if settings:
@@ -318,14 +320,16 @@ def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_
         path = urlparse(url).path
         return not area or path == area or path.startswith(area.rstrip("/") + "/")
 
-    first = start or home
-    queue, seen = [first], {normalise(first)}
+    first = normalise(start or home)
+    queue, seen = [first], {first}
     for url in extra:
         if normalise(url) not in seen:
             seen.add(normalise(url))
             queue.append(normalise(url))
+    visited = 0
     try:
-        while queue and len(site.pages) < max_pages:
+        while queue and visited < max_pages:
+            visited += 1
             url = queue.pop(0)
             result = PageResult(url)
             js_errors.clear()
@@ -361,7 +365,12 @@ def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_
             site.results[url] = result
             result.status = response.status if response else None
             result.final_url = page.url
-            for href in page.evaluate(LINKS_JS):
+            try:
+                hrefs = page.evaluate(LINKS_JS)
+            except PlaywrightError as exc:
+                site.problems[url] = site.problems.get(url) or f"could not read links: {exc.message.splitlines()[0][:80]}"
+                hrefs = []
+            for href in (hrefs or []):
                 site.links.setdefault(urldefrag(href)[0], url)
                 key = normalise(href)
                 if (same_site(href, home) and is_page(href) and key not in seen and in_area(key)
@@ -381,7 +390,16 @@ def crawl(browser: Browser, home: str, max_pages: int, wait_until: str, *, self_
                 except PlaywrightError as exc:  # a page that breaks mid-check is reported, the audit goes on
                     site.problems[url] = f"could not be checked: {exc.message.splitlines()[0]}"
     finally:
-        context.close()
+        if page is not None:
+            try:
+                page.close()
+            except Exception:  # noqa: BLE001
+                pass
+        if context is not None:
+            try:
+                context.close()
+            except Exception:  # noqa: BLE001
+                pass
     return site
 
 
@@ -523,13 +541,19 @@ def _audit_role(browser: Browser, settings: Settings, run_dir: Path, role: str) 
     site.state = state
     if spec is not None and spec.must_not_access:
         login_url = urljoin(home, settings.auth.login_url.lstrip("/"))
-        context = browser.new_context(ignore_https_errors=accepts_self_signed(settings), storage_state=state)
-        page = context.new_page()
+        context = None
+        page = None
         try:
+            context = browser.new_context(ignore_https_errors=accepts_self_signed(settings), storage_state=state)
+            page = context.new_page()
             for path in spec.must_not_access:
                 url = urljoin(home, path.lstrip("/"))
                 try:
-                    response = page.goto(url, wait_until="domcontentloaded")
+                    response = page.goto(url, wait_until="domcontentloaded", timeout=settings.timeout_ms)
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=5_000)
+                    except PlaywrightError:
+                        pass
                     page.wait_for_timeout(500)
                     password_box = page.locator("input[type='password']").count() > 0
                     status = response.status if response else None
@@ -539,7 +563,16 @@ def _audit_role(browser: Browser, settings: Settings, run_dir: Path, role: str) 
                     site.refused[path] = ""  # the browser could not open it at all: refused
                     _ = exc
         finally:
-            context.close()
+            if page is not None:
+                try:
+                    page.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            if context is not None:
+                try:
+                    context.close()
+                except Exception:  # noqa: BLE001
+                    pass
     return site
 
 
@@ -589,18 +622,21 @@ def check_on_device(playwright, settings: Settings, site: SiteMap, device: str, 
         return [f"{device}: not a known device{' (did you mean: ' + ', '.join(near) + '?)' if near else ''}"], []
     profile = dict(playwright.devices[device])
     engine = profile.pop("default_browser_type")
-    browser = launch_browser(getattr(playwright, engine), headless=settings.headless, **launch_options(engine))
-    context = browser.new_context(**profile, storage_state=site.state, ignore_https_errors=accepts_self_signed(settings))
-    page = context.new_page()
-    page.set_default_timeout(settings.timeout_ms)
-    errors: list[str] = []
-    page.on("pageerror", lambda err: errors.append(f"JavaScript error: {(err.message or str(err)).splitlines()[0][:150]}"))
-    page.on("response", lambda r: errors.append(f"{r.request.method} {urlparse(r.url).path or '/'} -> HTTP {r.status}")
-            if r.status >= 400 and not r.request.is_navigation_request() else None)
-    problems: list[str] = []
-    gallery: list[tuple[str, str]] = []
-    shots.mkdir(parents=True, exist_ok=True)
+    browser = None
+    context = None
+    page = None
     try:
+        browser = launch_browser(getattr(playwright, engine), headless=settings.headless, **launch_options(engine))
+        context = browser.new_context(**profile, storage_state=site.state, ignore_https_errors=accepts_self_signed(settings))
+        page = context.new_page()
+        page.set_default_timeout(settings.timeout_ms)
+        errors: list[str] = []
+        page.on("pageerror", lambda err: errors.append(f"JavaScript error: {(err.message or str(err)).splitlines()[0][:150]}"))
+        page.on("response", lambda r: errors.append(f"{r.request.method} {urlparse(r.url).path or '/'} -> HTTP {r.status}")
+                if r.status >= 400 and not r.request.is_navigation_request() else None)
+        problems: list[str] = []
+        gallery: list[tuple[str, str]] = []
+        shots.mkdir(parents=True, exist_ok=True)
         for n, url in enumerate(u for u in site.pages if not site.results.get(u, PageResult(u)).load_error):
             errors.clear()
             where = short(url, site.home)
@@ -610,7 +646,7 @@ def check_on_device(playwright, settings: Settings, site: SiteMap, device: str, 
                     page.wait_for_function(CONTENT_JS, timeout=max(settings.audit.content_wait_ms, 1))
                     page.evaluate(STABLE_JS)
                 except PlaywrightError:
-                    pass
+                    problems.append(f"{device} {where}: page never showed real content within {settings.audit.content_wait_ms} ms")
                 found = page.evaluate(MOBILE_JS)
             except PlaywrightError as exc:
                 problems.append(f"{device} {where}: could not be opened ({exc.message.splitlines()[0][:120]})")
@@ -636,8 +672,21 @@ def check_on_device(playwright, settings: Settings, site: SiteMap, device: str, 
                 except PlaywrightError:
                     pass
     finally:
-        context.close()
-        browser.close()
+        if page is not None:
+            try:
+                page.close()
+            except Exception:  # noqa: BLE001
+                pass
+        if context is not None:
+            try:
+                context.close()
+            except Exception:  # noqa: BLE001
+                pass
+        if browser is not None:
+            try:
+                browser.close()
+            except Exception:  # noqa: BLE001
+                pass
     return problems, gallery
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import Literal
@@ -70,7 +71,7 @@ class BasePage:
             )
         except PlaywrightError as exc:
             # A diagnostic screenshot must never fail the test itself.
-            print(f"Step screenshot skipped for {label!r}: {exc.message.splitlines()[0]}")
+            logging.getLogger("sitesweep").warning("Step screenshot skipped for %r: %s", label, exc.message.splitlines()[0])
             return
         self._request.node.step_screenshots.append((label, str(path)))
 
